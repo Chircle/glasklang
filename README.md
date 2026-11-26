@@ -5,7 +5,7 @@ Login mit Google, Daten in Firebase Firestore, gehostet auf GitHub Pages. Es gib
 
 ## Funktionen
 
-- Google-Login. Zugriff haben nur du (Besitzer:in) und Konten, die du freigibst.
+- Google-Login. Zugriff hast nur du: Die Firestore-Regeln lassen ausschließlich deine Google-Adresse zu.
 - Songkatalog mit 200 Songs in 15 Kategorien, mit Suche und Filtern (Kategorie, Stimmung, Niveau, Register, Fassung, Technik).
 - **Eine Kachel pro Song, mehrere gesungene Fassungen**, z. B. „Let It Go“ auf Englisch und „Lass jetzt los“ auf Deutsch. Jede Fassung hat eigenen Titel, Interpret:in, Songtext und YouTube-Video. Das Video wird datenschutzfreundlich erst nach einem Klick geladen, über youtube-nocookie. Ohne eingetragenen Link gibt es eine passende YouTube-Suche.
 - Fassungen bearbeiten (nur Besitzer:in): „Bearbeiten“ bzw. „+“ im Unterrichtsblatt. Songtexte können Abschnitte wie `[Refrain]` enthalten.
@@ -14,6 +14,10 @@ Login mit Google, Daten in Firebase Firestore, gehostet auf GitHub Pages. Es gib
 - Technik-Konstellation: Glaskugeln, die du antippst, um den Katalog nach einer Technik zu filtern.
 - Glaskugel-Metronom: 30–260 BPM, Tap-Tempo, Taktarten 2/4 bis 12/8, Betonung, Klänge (Glas, Holz, Klick, stumm) und Lautstärke. Das Tempo lässt sich aus jedem Song übernehmen. Das Metronom läuft weiter, wenn du in die Datenbank wechselst. Tastatur: Leertaste startet und stoppt, ↑/↓ ändern das Tempo (mit Shift in 5er-Schritten), T ist Tap.
 - Unterrichtsblatt pro Song: Coaching-Fokus, Abschnitte mit Technik-Cues, eigener Songtext, Notizen.
+- **Songtext laden** über [LRCLIB](https://lrclib.net) (freie Songtext-Datenbank, oft mit Zeitstempeln). Suchen, Vorschau ansehen, übernehmen. Der Text landet nur in deinem privaten Firestore, nie im Repository.
+- **Karaoke-Ansicht:** Großer Text, bei synchronisierten Texten läuft die aktuelle Zeile mit, wahlweise zum YouTube-Video oder mit eigener Uhr. Zeile antippen springt dorthin; Versatz ±0,5 s und Schriftgröße einstellbar.
+- Rückfall-Links zu Genius und Musixmatch, wenn LRCLIB nichts findet (dort lesen, bei Bedarf von Hand abtippen).
+- **Profilbilder** für Künstler:innen, Bands und Musicals: automatisch erzeugte Glas-Avatare mit Initialen, optional ein eigenes Bild (wird auf 256 px zugeschnitten, ca. 25 KB, in `artists/{key}` gespeichert).
 - Übungsplan (Favoriten), „gemeistert“, Notizen und Design-Wahl. Das wird pro Konto gespeichert und ist auf allen Geräten gleich.
 - Export: Drucken oder als TXT.
 - Zwei Designs: **Tageslicht** und **Dämmerung**.
@@ -39,6 +43,9 @@ assets/js/app.js             UI-Logik
 assets/js/motion.js          Animationen & Interaktion
 assets/js/metronome.js       Metronom (Web Audio)
 assets/js/store.js           Firebase- bzw. Demo-Datenschicht
+assets/js/lyrics.js          LRCLIB-Suche & LRC-Parser
+assets/js/karaoke.js         Karaoke-Ansicht
+assets/js/avatars.js         Glas-Avatare & Bild-Upload
 assets/manifest.webmanifest  App-Manifest (Home-Bildschirm)
 assets/icons/                App-Icons
 assets/js/firebase-config.js Platzhalter, wird beim Deploy aus den Secrets erzeugt
@@ -61,7 +68,8 @@ firestore.rules              Sicherheitsregeln
 
 ### 2. Sicherheitsregeln
 - Öffne `firestore.rules` und ersetze `deine.adresse@gmail.com` durch deine Google-Adresse in Kleinbuchstaben. Mach das **nur in der Firebase Console**: Den Inhalt dort unter **Firestore → Regeln** einfügen und **Veröffentlichen**. Im Repository bleibt der Platzhalter stehen.
-- Die Regeln sind nicht öffentlich einsehbar. Auch die Seite selbst enthält deine Adresse nicht, denn sie erkennt die Besitzerin bzw. den Besitzer daran, dass nur sie/er die Mitgliederliste lesen darf.
+- Die Regeln sind nicht öffentlich einsehbar. Auch die Seite selbst enthält deine Adresse nicht: Sie prüft beim Login nur, ob Firestore den Lesezugriff erlaubt.
+- **Nach jedem Update von `firestore.rules`** (z. B. neue Sammlung `artists`) den Inhalt erneut in der Console einfügen und veröffentlichen. Das Repository allein ändert die aktiven Regeln nicht.
 
 ### 3. GitHub: Secrets & Pages
 1. Repository anlegen und den Code pushen (siehe unten).
@@ -91,7 +99,7 @@ Zuletzt in Firebase unter **Authentication → Settings → Autorisierte Domains
 
 #### Gut zu wissen: Was Secrets leisten und was nicht
 Die Secrets halten die Werte aus dem **Repository** heraus. Die ausgelieferte Seite braucht sie aber im Browser, also kann sie jede:r über die Entwicklertools sehen. Das ist bei Firebase so vorgesehen: Die Web-Config ist ein Erkennungsmerkmal, kein Passwort. Geschützt sind deine Daten über drei Ebenen:
-- **Firestore-Regeln:** Nur du und freigegebene Konten kommen an die Daten.
+- **Firestore-Regeln:** Nur dein Konto kommt an die Daten.
 - **Autorisierte Domains:** Der Login funktioniert nur auf deiner Seite.
 - **Empfohlen, den API-Schlüssel einschränken:** In der Google Cloud Console unter **APIs & Dienste → Anmeldedaten** den Browser-Schlüssel auswählen und unter **Website-Einschränkungen** eintragen:
   - `https://DEIN-NAME.github.io/*`
@@ -103,13 +111,17 @@ Die Secrets halten die Werte aus dem **Repository** heraus. Die ausgelieferte Se
 ### 4. Erster Login
 1. Die Seite öffnen und mit deinem Google-Konto anmelden.
 2. Weil der Katalog noch leer ist, erscheint **„Startdaten importieren“**. Ein Klick schreibt die 200 Songs, die Kategorien und das Quellen-Kompendium in Firestore.
-3. Über Avatar-Menü → **Mitglieder verwalten** (oder „Team“ im Dock) gibst du weitere Google-Adressen frei.
 
 ## Songtexte & Videos ergänzen
 Die Startdaten enthalten **keine Songtexte**. So ergänzt du sie:
-1. Song öffnen.
-2. Unter „Gesungene Fassungen“ die Sprache wählen.
-3. **Bearbeiten** klicken und Songtext sowie YouTube-Link einfügen.
+1. Song öffnen und unter „Gesungene Fassungen“ die Sprache wählen.
+2. **Songtext laden** antippen: Titel und Interpret:in sind vorausgefüllt, Treffer antippen, Vorschau prüfen, **Übernehmen**.
+3. Alternativ **Bearbeiten** und Text sowie YouTube-Link von Hand einfügen.
+
+Gut zu wissen:
+- LRCLIB ist bei englischen Originalen gut bestückt, bei deutschen Musical- und Disney-Fassungen eher dünn. Dann hilft der Genius-/Musixmatch-Link oder Abtippen.
+- Die Texte sind urheberrechtlich geschützt. Für den privaten Gebrauch ist das in Ordnung; deshalb bleibt die App auf dein Konto beschränkt und die Texte gehören nicht ins Repository.
+- Anfragen an LRCLIB laufen nur auf Knopfdruck, nacheinander und mit Kennung (`Lrclib-Client`).
 
 Die Suche findet danach auch Wörter aus dem Text.
 
@@ -136,10 +148,10 @@ Danach `review` löschen oder auf `false` setzen.
 ## Datenmodell
 | Pfad | Inhalt | Lesen | Schreiben |
 |---|---|---|---|
-| `songs/{id}` | schema, order, category, artist, key[{tonic, mode}], range, bpm, difficulty, register, mood, techniques[], tip{de,en}, coachingQuery, sections[{type, n, label?, cue{de,en}}], versions[{id, lang, title, performer, lyrics, video}], review? | Mitglieder | Besitzer:in |
-| `meta/categories` | items[{id, label, order}] | Mitglieder | Besitzer:in |
-| `meta/compendium` | items[{id, title{de,en}, html{de,en}}] | Mitglieder | Besitzer:in |
-| `members/{email}` | addedAt, addedBy | Besitzer:in, eigene Adresse | Besitzer:in |
+| `songs/{id}` | schema, order, category, artist, key[{tonic, mode}], range, bpm, difficulty, register, mood, techniques[], tip{de,en}, coachingQuery, sections[{type, n, label?, cue{de,en}}], versions[{id, lang, title, performer, lyrics, video, synced?, lyricsSource?}], review? | Besitzer:in | Besitzer:in |
+| `meta/categories` | items[{id, label, order}] | Besitzer:in | Besitzer:in |
+| `meta/compendium` | items[{id, title{de,en}, html{de,en}}] | Besitzer:in | Besitzer:in |
+| `artists/{key}` | name, image (Data-URL) | Besitzer:in | Besitzer:in |
 | `users/{uid}` | favorites[], completed[], notes{}, theme, lang, metronome{} | nur das eigene Konto | nur das eigene Konto |
 
 ## Lokal testen

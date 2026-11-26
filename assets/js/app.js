@@ -3,6 +3,9 @@ import { createStore } from './store.js';
 import { initSky, initOrb, initTilt, initDock, layoutBubbles, reveal, popIcon, ripple, reduced } from './motion.js';
 import { createMetronome, tempoName, METERS } from './metronome.js';
 import { LANGS, t, L, isFallback, setLang, getLang, detectLang, translateDOM, compare, langName, autonym, keyName, fmtNum } from './i18n.js';
+import { searchLyrics, lrcToPlain, fmtDuration, externalLyricsLinks } from './lyrics.js';
+import { openKaraoke, closeKaraoke, bindKaraoke } from './karaoke.js';
+import { artistKey, avatarHTML, processImage } from './avatars.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -16,7 +19,6 @@ const ENUMS = {
   techniques: ['belting', 'mix', 'legit', 'twang', 'runs', 'support']
 };
 const TECH_COLORS = { belting: '#ef7a6c', mix: '#9a6bff', legit: '#6fb6ff', twang: '#f5a65b', runs: '#e36fb4', support: '#45c19a' };
-const CAT_COLORS = ['#9a6bff', '#ef7a6c', '#4f8df0', '#e36fb4', '#f0a04b', '#45c19a', '#7a6cf0', '#3fb6d6', '#d0679a'];
 const DIFF_RANK = { beginner: 1, intermediate: 2, advanced: 3 };
 const EDIT_LANGS = ['de', 'en', 'fr', 'es', 'it', 'pt', 'nl', 'sv', 'da', 'no', 'pl', 'cs', 'hu', 'el', 'tr', 'ru', 'ja', 'ko', 'zh', 'he', 'ar', 'la'];
 const VIEWS = ['katalog', 'technik', 'metronom'];
@@ -27,7 +29,7 @@ const haptic = (ms = 8) => { try { if (coarse.matches) navigator.vibrate?.(ms); 
 const tEnum = (group, id) => t(`enum.${group}.${id}`);
 
 const S = {
-  store: null, user: null, role: null,
+  store: null, user: null, artists: {},
   songs: [], cats: [], comp: [], compSel: null,
   u: { favorites: [], completed: [], notes: {}, theme: null, lang: null, metronome: null },
   f: { q: '', cat: 'ALL', mood: 'ALL', diff: 'ALL', reg: 'ALL', vlang: 'ALL', sort: 'order', tech: 'ALL', fav: false },
@@ -128,7 +130,6 @@ async function enterApp() {
   let demoHidden = false;
   try { demoHidden = sessionStorage.getItem('glasklang-demo-hidden') === '1'; } catch { /* egal */ }
   $('#demo-banner').hidden = !S.store.demo || demoHidden;
-  $$('[data-owner-only]').forEach(el => { el.hidden = S.role !== 'owner'; });
 
   const name = S.user.displayName || S.user.email;
   $('#user-name').textContent = name.split(' ')[0];
@@ -138,7 +139,8 @@ async function enterApp() {
   else av.textContent = name.slice(0, 1).toUpperCase();
 
   setSync('sync.loading');
-  const [songs, cats, comp, u] = await Promise.all([S.store.songs(), S.store.categories(), S.store.compendium(), S.store.loadUserState()]);
+  const [songs, cats, comp, u, artists] = await Promise.all([S.store.songs(), S.store.categories(), S.store.compendium(), S.store.loadUserState(), S.store.artists().catch(() => ({}))]);
+  S.artists = artists || {};
   S.songs = songs.map(s => ({ ...s, techniques: s.techniques || [], sections: s.sections || [], versions: s.versions || [] }))
                  .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   S.cats = cats.length ? [...cats].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -150,7 +152,7 @@ async function enterApp() {
   S.sel = S.sel || (song('wk1') ? 'wk1' : S.songs[0]?.id) || null;
   setSync('sync.ready');
 
-  $('#seed-tile').hidden = !(S.role === 'owner' && !S.store.demo && S.songs.length === 0);
+  $('#seed-tile').hidden = !(!S.store.demo && S.songs.length === 0);
   metroApply({ ...METRO_DEFAULT, ...(S.u.metronome || {}) }, false);
   renderAll();
   route();
@@ -277,8 +279,10 @@ function apply() {
   renderInspector();
 }
 
-const catColor = id => CAT_COLORS[Math.max(0, S.cats.findIndex(c => c.id === id)) % CAT_COLORS.length];
-const initials = label => label.replace(/[^\p{L}&\s-]/gu, '').split(/[\s-]+/).filter(w => w && w !== '&').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+function artistAvatar(s, size, cls = '') {
+  const key = artistKey(s.artist);
+  return avatarHTML({ name: L(s.artist), key, image: S.artists[key]?.image, size, cls });
+}
 const diffBadge = d => d === 'beginner' ? 'badge--mint' : d === 'advanced' ? 'badge--coral' : 'badge--accent';
 
 function renderCards() {
@@ -295,7 +299,7 @@ function renderCards() {
     const vs = versions(s), alts = altTitles(s);
     return `<article class="card ${s.id === S.sel ? 'is-selected' : ''}" data-id="${esc(s.id)}" tabindex="0" role="button" aria-pressed="${s.id === S.sel}" aria-label="${esc(t('card.open', { title: mainTitle(s) }))}">
       <div class="card-top">
-        <span class="mono" style="--c:${catColor(s.category)}" aria-hidden="true">${esc(initials(catLabel(s.category)))}</span>
+        ${artistAvatar(s, 42, 'card-av')}
         <div class="card-badges">
           ${vs.length > 1 || vs[0].lang !== 'en' ? `<span class="langs" title="${esc(t('versions.title'))}">${vs.map(v => `<b>${esc(v.lang.toUpperCase())}</b>`).join('')}</span>` : ''}
           <span class="badge ${diffBadge(s.difficulty)}">${esc(tEnum('difficulty', s.difficulty))}</span>
@@ -374,11 +378,18 @@ function renderInspector() {
   const s = song(S.sel);
   if (!s) { box.innerHTML = `<p class="muted">${esc(t(S.songs.length ? 'sheet.pick' : 'sheet.noSongs'))}</p>`; return; }
   const fav = S.u.favorites.includes(s.id), done = S.u.completed.includes(s.id);
-  const v = currentVersion(s), vs = versions(s), owner = S.role === 'owner';
+  const v = currentVersion(s), vs = versions(s);
   const alts = altTitles(s);
+  const hasImg = !!S.artists[artistKey(s.artist)]?.image;
+  const links = externalLyricsLinks(v.title, v.performer || L(s.artist));
   box.innerHTML = `<div class="insp-anim">
     <div class="insp-head">
-      <div>
+      <div class="insp-avatar">
+        ${artistAvatar(s, 72, 'av-lg')}
+        <button type="button" class="av-edit" data-avatar-pick aria-label="${esc(t(hasImg ? 'avatar.change' : 'avatar.add'))}" title="${esc(t(hasImg ? 'avatar.change' : 'avatar.add'))}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-camera"/></svg></button>
+        ${hasImg ? `<button type="button" class="av-remove" data-avatar-remove aria-label="${esc(t('avatar.remove'))}" title="${esc(t('avatar.remove'))}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-x"/></svg></button>` : ''}
+      </div>
+      <div class="insp-heading">
         <div class="insp-kicker">${esc(catLabel(s.category))} · ${esc(tEnum('mood', s.mood))} · ${esc(tEnum('difficulty', s.difficulty))}</div>
         <h2 class="insp-title">${esc(mainTitle(s))}</h2>
         ${alts.length ? `<div class="card-alt">${alts.map(esc).join(' · ')}</div>` : ''}
@@ -408,7 +419,7 @@ function renderInspector() {
         <span class="lbl">${esc(t('versions.title'))}</span>
         <div class="segmented" role="tablist">
           ${vs.map(x => `<button type="button" role="tab" class="seg ${x.id === v.id ? 'is-on' : ''}" aria-selected="${x.id === v.id}" data-version="${esc(x.id)}">${esc(langName(x.lang))}</button>`).join('')}
-          ${owner ? `<button type="button" class="seg seg--add" data-version-add aria-label="${esc(t('versions.add'))}" title="${esc(t('versions.add'))}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-plus"/></svg></button>` : ''}
+          <button type="button" class="seg seg--add" data-version-add aria-label="${esc(t('versions.add'))}" title="${esc(t('versions.add'))}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-plus"/></svg></button>
         </div>
       </div>
       <div class="version-card" lang="${esc(v.lang)}">
@@ -417,11 +428,16 @@ function renderInspector() {
             <div class="version-title">${esc(v.title)}</div>
             <div class="muted version-sub">${esc(v.performer || L(s.artist))} · ${esc(autonym(v.lang))}</div>
           </div>
-          ${owner ? `<button type="button" class="btn btn--sm btn--ghost" data-version-edit="${esc(v.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-edit"/></svg>${esc(t('versions.edit'))}</button>` : ''}
+          <button type="button" class="btn btn--sm btn--ghost" data-version-edit="${esc(v.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-edit"/></svg>${esc(t('versions.edit'))}</button>
         </div>
         ${videoBlock(s, v)}
-        <div class="lyrics">${v.lyrics ? lyricsBlock(v.lyrics)
-          : `<p class="sec-empty">${esc(t(owner ? 'versions.noLyricsOwner' : 'versions.noLyrics'))}</p>`}</div>
+        <div class="ly-actions">
+          ${v.lyrics ? `<button type="button" class="btn btn--sm btn--primary" data-karaoke><svg class="ico ico--sm" aria-hidden="true"><use href="#i-${v.synced ? 'mic' : 'text'}"/></svg>${esc(t(v.synced ? 'karaoke.open' : 'karaoke.openPlain'))}</button>` : ''}
+          <button type="button" class="btn btn--sm ${v.lyrics ? 'btn--ghost' : 'btn--primary'}" data-lyrics-load><svg class="ico ico--sm" aria-hidden="true"><use href="#i-download"/></svg>${esc(t(v.lyrics ? 'lyrics.reload' : 'lyrics.load'))}</button>
+        </div>
+        ${v.synced ? `<span class="badge badge--accent ly-sync-badge">${esc(t('lyrics.synced'))}</span>` : ''}
+        <div class="lyrics">${v.lyrics ? lyricsBlock(v.lyrics) : `<p class="sec-empty">${esc(t('versions.noLyricsOwner'))}</p>`}</div>
+        <p class="ly-links"><span>${esc(t('lyrics.elsewhere'))}</span> ${links.map(l => `<a class="link-ext" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>`).join(' ')}</p>
       </div>
     </section>
 
@@ -566,6 +582,7 @@ async function saveVersion(remove = false) {
   else {
     const lang = $('#v-lang').value;
     const data = { lang, title: $('#v-title').value.trim(), performer: $('#v-performer').value.trim(), video: $('#v-video').value.trim(), lyrics: $('#v-lyrics').value };
+    if (!data.lyrics.trim()) data.synced = '';
     if (versionId) list = list.map(x => (x.id === versionId ? { ...x, ...data } : x));
     else {
       let id = lang, n = 2;
@@ -580,6 +597,119 @@ async function saveVersion(remove = false) {
     $('#version-dialog').close();
     toast(t(remove ? 'toast.versionDeleted' : 'toast.versionSaved'));
     fillSelects(); renderCards(); renderInspector();
+  } catch (e) { console.error(e); toast(t('toast.saveFailed')); }
+}
+
+/* ------------------------------------------- Songtext laden (LRCLIB) */
+const LY = { songId: null, versionId: null, results: [], pick: null };
+function openLyricsDialog() {
+  const s = song(S.sel);
+  if (!s) return;
+  const v = currentVersion(s);
+  Object.assign(LY, { songId: s.id, versionId: v.id, results: [], pick: null });
+  $('#ly-for').textContent = t('lyrics.for', { title: v.title, lang: langName(v.lang) });
+  $('#ly-title').value = v.title;
+  $('#ly-artist').value = v.performer || L(s.artist);
+  $('#ly-results').innerHTML = '';
+  $('#ly-preview').hidden = true;
+  $('#ly-apply').disabled = true;
+  $('#ly-status').textContent = '';
+  $('#lyrics-dialog').showModal();
+  runLyricsSearch();
+}
+async function runLyricsSearch() {
+  const title = $('#ly-title').value.trim(), artist = $('#ly-artist').value.trim();
+  if (!title) return;
+  $('#ly-status').textContent = t('lyrics.searching');
+  $('#ly-results').innerHTML = '';
+  $('#ly-preview').hidden = true; $('#ly-apply').disabled = true; LY.pick = null;
+  try {
+    LY.results = await searchLyrics({ title, artist });
+    $('#ly-status').textContent = LY.results.length ? t('lyrics.found', { count: LY.results.length }) : t('lyrics.none');
+    $('#ly-results').innerHTML = LY.results.map((r, i) => `
+      <li><button type="button" class="ly-hit" data-ly-pick="${i}">
+        <span class="ly-hit-main"><b>${esc(r.trackName)}</b><span>${esc(r.artistName)}${r.albumName ? ' · ' + esc(r.albumName) : ''}</span></span>
+        <span class="ly-hit-meta">${r.syncedLyrics ? `<span class="badge badge--accent">${esc(t('lyrics.synced'))}</span>` : ''}<span>${esc(fmtDuration(r.duration))}</span></span>
+      </button></li>`).join('');
+  } catch (e) {
+    console.error(e);
+    $('#ly-status').textContent = e.message === 'rate-limit' ? t('lyrics.rateLimit', { s: e.retryAfter }) : t('lyrics.error');
+  }
+}
+function pickLyrics(i) {
+  const r = LY.results[i];
+  if (!r) return;
+  LY.pick = r;
+  $$('.ly-hit').forEach((b, j) => b.classList.toggle('is-on', j === i));
+  $('#ly-p-title').textContent = `${r.trackName} · ${r.artistName}`;
+  $('#ly-p-sync').hidden = !r.syncedLyrics;
+  $('#ly-p-text').innerHTML = lyricsBlock(r.plainLyrics || lrcToPlain(r.syncedLyrics));
+  $('#ly-preview').hidden = false;
+  $('#ly-apply').disabled = false;
+  $('#ly-preview').scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+}
+async function applyLyrics() {
+  const s = song(LY.songId), r = LY.pick;
+  if (!s || !r) return;
+  const list = versions(s).map(x => (x.id === LY.versionId
+    ? { ...x, lyrics: r.plainLyrics || lrcToPlain(r.syncedLyrics), synced: r.syncedLyrics || '', lyricsSource: { provider: 'lrclib', id: r.id } }
+    : { ...x }));
+  try {
+    await S.store.updateSong(s.id, { versions: list });
+    s.versions = list;
+    $('#lyrics-dialog').close();
+    toast(t(r.syncedLyrics ? 'toast.lyricsSyncedSaved' : 'toast.lyricsSaved'));
+    renderInspector();
+  } catch (e) { console.error(e); toast(t(e.message === 'storage-full' ? 'toast.storageFull' : 'toast.saveFailed')); }
+}
+
+/* ------------------------------------------------ Vollbild / Karaoke */
+function startKaraoke() {
+  const s = song(S.sel);
+  if (!s) return;
+  const v = currentVersion(s);
+  if (!v.lyrics && !v.synced) return;
+  openKaraoke({
+    title: v.title,
+    sub: `${v.performer || L(s.artist)} · ${autonym(v.lang)}`,
+    lyrics: v.lyrics, synced: v.synced, videoId: youtubeId(v.video), t
+  });
+}
+
+/* ---------------------------------------------------- Profilbilder */
+let avatarFor = null;
+function pickAvatar() {
+  const s = song(S.sel);
+  if (!s) return;
+  avatarFor = s;
+  const input = $('#avatar-file');
+  input.value = '';
+  input.click();
+}
+async function onAvatarFile(file) {
+  const s = avatarFor;
+  if (!s || !file) return;
+  const key = artistKey(s.artist);
+  try {
+    const image = await processImage(file);
+    await S.store.setArtistImage(key, image, L(s.artist));
+    S.artists[key] = { image, name: L(s.artist) };
+    toast(t('avatar.saved', { name: L(s.artist) }));
+    renderCards(); renderInspector();
+  } catch (e) {
+    console.error(e);
+    toast(t(e.message === 'not-image' ? 'avatar.notImage' : e.message === 'storage-full' ? 'toast.storageFull' : 'toast.saveFailed'));
+  }
+}
+async function removeAvatar() {
+  const s = song(S.sel);
+  if (!s) return;
+  const key = artistKey(s.artist);
+  try {
+    await S.store.setArtistImage(key, null);
+    delete S.artists[key];
+    toast(t('avatar.removed'));
+    renderCards(); renderInspector();
   } catch (e) { console.error(e); toast(t('toast.saveFailed')); }
 }
 
@@ -616,23 +746,6 @@ function exportTxt(s) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-/* --------------------------------------------------------- Mitglieder */
-async function openMembers() {
-  $('#user-menu').hidden = true;
-  $('#members-dialog').showModal();
-  await renderMembers();
-}
-async function renderMembers() {
-  const ul = $('#member-list');
-  ul.innerHTML = `<li>${esc(t('sync.loading'))}</li>`;
-  try {
-    const list = await S.store.listMembers();
-    ul.innerHTML = `<li class="owner"><span>${esc(S.user.email)}</span><span class="badge badge--accent">${esc(t('members.owner'))}</span></li>` +
-      (list.length ? list.map(m => `<li><span>${esc(m)}</span><button type="button" class="btn btn--sm btn--ghost" data-remove="${esc(m)}">${esc(t('members.remove'))}</button></li>`).join('')
-                   : `<li class="muted">${esc(t('members.none'))}</li>`);
-  } catch (e) { console.error(e); ul.innerHTML = `<li>${esc(t('members.loadFailed'))}</li>`; }
-}
-
 /* ---------------------------------------------------------- Ansichten */
 function go(view) { if (location.hash !== '#/' + view) location.hash = '#/' + view; else route(); }
 function route() {
@@ -647,6 +760,7 @@ function route() {
   });
   $$('.dock-item[data-go]').forEach(a => a.classList.toggle('is-on', a.dataset.go === view));
   if (view !== 'katalog') { closeSheet(); closeFilters(); }
+  closeKaraoke();
   if (view === 'technik') requestAnimationFrame(renderBubbles);
   if (changed) window.scrollTo({ top: 0 });
 }
@@ -815,6 +929,12 @@ function bind() {
     if (e.target.closest('[data-txt]')) { const s = song(S.sel); return s && exportTxt(s); }
     const mb = e.target.closest('[data-metro]');
     if (mb) { metroFromSong(mb.dataset.metro); closeSheet(); return go('metronom'); }
+    if (e.target.closest('[data-lyrics-load]')) return openLyricsDialog();
+    if (e.target.closest('[data-karaoke]')) return startKaraoke();
+    if (e.target.closest('[data-avatar-pick]')) return pickAvatar();
+    if (e.target.closest('[data-avatar-remove]')) return removeAvatar();
+    const lp = e.target.closest('[data-ly-pick]');
+    if (lp) return pickLyrics(Number(lp.dataset.lyPick));
     const vt = e.target.closest('[data-version]');
     if (vt) { S.verSel[S.sel] = vt.dataset.version; return renderInspector(); }
     if (e.target.closest('[data-version-add]')) return openVersionEditor(S.sel, null);
@@ -832,13 +952,7 @@ function bind() {
     if (act) {
       const a = act.dataset.action;
       if (a === 'signout') return S.store.signOut();
-      if (a === 'members') return openMembers();
       if (a === 'plan') { S.f.fav = !S.f.fav; apply(); return go('katalog'); }
-    }
-    const rm = e.target.closest('[data-remove]');
-    if (rm) {
-      return S.store.removeMember(rm.dataset.remove).then(renderMembers).then(() => toast(t('toast.memberRemoved')))
-        .catch(err => { console.error(err); toast(t('toast.removeFailed')); });
     }
     if (!e.target.closest('#user-chip, #user-menu')) { $('#user-menu').hidden = true; $('#user-chip').setAttribute('aria-expanded', 'false'); }
   });
@@ -863,15 +977,10 @@ function bind() {
     $('#user-chip').setAttribute('aria-expanded', String(!m.hidden));
   });
 
-  $('#member-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const input = $('#member-email');
-    const email = input.value.trim().toLowerCase();
-    if (!email) return;
-    try { await S.store.addMember(email); input.value = ''; toast(t('toast.memberAdded', { email })); await renderMembers(); }
-    catch (err) { console.error(err); toast(t('toast.addFailed')); }
-  });
-
+  $('#ly-form').addEventListener('submit', e => { e.preventDefault(); runLyricsSearch(); });
+  $('#ly-cancel').addEventListener('click', () => $('#lyrics-dialog').close());
+  $('#ly-apply').addEventListener('click', applyLyrics);
+  $('#avatar-file').addEventListener('change', e => onAvatarFile(e.target.files?.[0]));
   $('#version-form').addEventListener('submit', e => { e.preventDefault(); saveVersion(false); });
   $('#v-cancel').addEventListener('click', () => $('#version-dialog').close());
   $('#v-delete').addEventListener('click', e => {
@@ -910,6 +1019,7 @@ async function boot() {
   initTilt($('#cards'));
   initDock($('#dock'));
   bindMetro();
+  bindKaraoke();
   bind();
   metroLabels();
 
@@ -919,9 +1029,7 @@ async function boot() {
   S.store.onAuth(async user => {
     S.user = user;
     if (!user) return showGate();
-    const acc = await S.store.access();
-    if (!acc.ok) return showGate(user.email);
-    S.role = acc.role;
+    if (!(await S.store.access())) return showGate(user.email);
     try { await enterApp(); }
     catch (e) { console.error(e); toast(t('toast.loadFailed')); }
   });

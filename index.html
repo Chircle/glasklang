@@ -89,7 +89,6 @@
         </button>
         <div class="menu glass" id="user-menu" hidden>
           <div class="menu-mail" id="user-mail"></div>
-          <button type="button" class="menu-item" data-action="members" data-owner-only hidden><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span data-i18n="menu.members"></span></button>
           <button type="button" class="menu-item" data-action="signout"><svg class="ico" aria-hidden="true"><use href="#i-logout"/></svg><span data-i18n="menu.signout"></span></button>
         </div>
       </div>
@@ -251,24 +250,9 @@
       <a class="dock-item" href="#/technik" data-go="technik"><svg class="ico" aria-hidden="true"><use href="#i-orbit"/></svg><span data-i18n="view.technik"></span></a>
       <a class="dock-item dock-metro" href="#/metronom" data-go="metronom"><svg class="ico" aria-hidden="true"><use href="#i-metro"/></svg><span data-i18n="view.metronom"></span><i class="dock-pulse" aria-hidden="true"></i></a>
       <button type="button" class="dock-item" data-action="plan"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="dock.plan"></span></button>
-      <button type="button" class="dock-item" data-action="members" data-owner-only hidden><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span data-i18n="dock.team"></span></button>
     </nav>
     <div class="scrim" id="scrim" hidden></div>
   </div>
-
-  <!-- Mitglieder -->
-  <dialog class="sheet glass-deep" id="members-dialog" aria-labelledby="members-title">
-    <form method="dialog" class="sheet-head">
-      <h2 id="members-title" class="tile-title" data-i18n="members.title"></h2>
-      <button class="icon-btn" data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
-    </form>
-    <p class="muted" data-i18n="members.text"></p>
-    <form class="member-add" id="member-form">
-      <label class="pill-field grow"><span class="sr-only" data-i18n="members.email"></span><input type="email" id="member-email" placeholder="name@gmail.com" required></label>
-      <button class="btn btn--primary" type="submit" data-i18n="members.add"></button>
-    </form>
-    <ul class="member-list" id="member-list"></ul>
-  </dialog>
 
   <!-- Fassung bearbeiten (nur Besitzer:in) -->
   <dialog class="sheet sheet--wide glass-deep" id="version-dialog" aria-labelledby="version-title">
@@ -293,6 +277,61 @@
       </div>
     </form>
   </dialog>
+
+  <!-- Songtext laden (LRCLIB) -->
+  <dialog class="sheet sheet--wide glass-deep" id="lyrics-dialog" aria-labelledby="lyrics-title">
+    <form method="dialog" class="sheet-head">
+      <div class="head-txt"><h2 id="lyrics-title" class="tile-title" data-i18n="lyrics.title"></h2>
+      <p class="muted ly-for" id="ly-for"></p></div>
+      <button class="icon-btn" data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </form>
+    <form class="ly-form" id="ly-form">
+      <label class="field"><span class="lbl" data-i18n="edit.songTitle"></span><span class="pill-field"><input id="ly-title" required enterkeyhint="search"></span></label>
+      <label class="field"><span class="lbl" data-i18n="edit.performer"></span><span class="pill-field"><input id="ly-artist" enterkeyhint="search"></span></label>
+      <button class="btn btn--primary" type="submit"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><span data-i18n="lyrics.search"></span></button>
+    </form>
+    <p class="ly-status muted" id="ly-status" aria-live="polite"></p>
+    <ul class="ly-results" id="ly-results"></ul>
+    <div class="ly-preview" id="ly-preview" hidden>
+      <div class="ly-preview-head"><b id="ly-p-title"></b><span class="badge badge--accent" id="ly-p-sync" hidden data-i18n="lyrics.synced"></span></div>
+      <div class="ly-p-text" id="ly-p-text"></div>
+    </div>
+    <div class="edit-actions">
+      <span class="ly-credit"><span data-i18n="lyrics.source"></span> <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a></span>
+      <span class="grow"></span>
+      <button type="button" class="btn btn--ghost" id="ly-cancel" data-i18n="common.cancel"></button>
+      <button type="button" class="btn btn--primary" id="ly-apply" disabled data-i18n="lyrics.apply"></button>
+    </div>
+  </dialog>
+
+  <!-- Vollbild-Songtext / Karaoke -->
+  <section class="karaoke" id="karaoke" hidden role="dialog" aria-modal="true" aria-labelledby="k-title">
+    <header class="k-top">
+      <div class="k-titles">
+        <span class="k-mode" id="k-mode"></span>
+        <h2 id="k-title"></h2>
+        <span class="k-sub" id="k-sub"></span>
+      </div>
+      <div class="k-size">
+        <button type="button" class="icon-btn" data-k-size="-0.1" data-i18n-attr="aria-label:karaoke.smaller">A−</button>
+        <button type="button" class="icon-btn" data-k-size="0.1" data-i18n-attr="aria-label:karaoke.larger">A+</button>
+      </div>
+      <button type="button" class="icon-btn" id="k-close" data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="k-video" id="k-video" hidden></div>
+    <div class="k-lines" id="k-lines"></div>
+    <footer class="k-controls glass">
+      <div class="k-row">
+        <button type="button" class="icon-btn" data-k-shift="-0.5" data-i18n-attr="aria-label:karaoke.earlier; title:karaoke.earlier">−½</button>
+        <button type="button" class="k-play" id="k-play"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg></button>
+        <button type="button" class="icon-btn" data-k-shift="0.5" data-i18n-attr="aria-label:karaoke.later; title:karaoke.later">+½</button>
+      </div>
+      <input type="range" id="k-seek" min="0" max="100" value="0" data-i18n-attr="aria-label:karaoke.position">
+      <div class="k-meta"><span id="k-time">0:00</span><span id="k-source"></span><span><span data-i18n="karaoke.offset"></span> <b id="k-offset">0.0 s</b></span></div>
+    </footer>
+  </section>
+
+  <input type="file" id="avatar-file" accept="image/*" hidden>
 
   <div class="toast glass" id="toast" role="status" aria-live="polite" hidden></div>
   <div class="print-sheet" id="print-sheet"></div>
@@ -322,6 +361,11 @@
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
       <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
       <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="3.8" height="14" rx="1"/><rect x="13.7" y="5" width="3.8" height="14" rx="1"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></symbol>
+      <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 6h16M4 10h12M4 14h16M4 18h9"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></symbol>
+      <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.4"/></symbol>
       <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
     </defs>
   </svg>
