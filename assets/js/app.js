@@ -436,7 +436,12 @@ function renderInspector() {
           <button type="button" class="btn btn--sm ${v.lyrics ? 'btn--ghost' : 'btn--primary'}" data-lyrics-load><svg class="ico ico--sm" aria-hidden="true"><use href="#i-download"/></svg>${esc(t(v.lyrics ? 'lyrics.reload' : 'lyrics.load'))}</button>
         </div>
         ${v.synced ? `<span class="badge badge--accent ly-sync-badge">${esc(t('lyrics.synced'))}</span>` : ''}
-        <div class="lyrics">${v.lyrics ? lyricsBlock(v.lyrics) : `<p class="sec-empty">${esc(t('versions.noLyricsOwner'))}</p>`}</div>
+        ${v.lyrics
+          ? `<div class="lyrics-wrap">
+              <button type="button" class="icon-btn ly-expand" data-karaoke aria-label="${esc(t('lyrics.fullscreen'))}" title="${esc(t('lyrics.fullscreen'))}"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></button>
+              <div class="lyrics" data-karaoke-tap>${lyricsBlock(v.lyrics)}</div>
+            </div>`
+          : `<div class="lyrics"><p class="sec-empty">${esc(t('versions.noLyricsOwner'))}</p></div>`}
         <p class="ly-links"><span>${esc(t('lyrics.elsewhere'))}</span> ${links.map(l => `<a class="link-ext" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>`).join(' ')}</p>
       </div>
     </section>
@@ -931,6 +936,7 @@ function bind() {
     if (mb) { metroFromSong(mb.dataset.metro); closeSheet(); return go('metronom'); }
     if (e.target.closest('[data-lyrics-load]')) return openLyricsDialog();
     if (e.target.closest('[data-karaoke]')) return startKaraoke();
+    if (e.target.closest('[data-karaoke-tap]') && !String(getSelection?.() || '')) return startKaraoke();
     if (e.target.closest('[data-avatar-pick]')) return pickAvatar();
     if (e.target.closest('[data-avatar-remove]')) return removeAvatar();
     const lp = e.target.closest('[data-ly-pick]');

@@ -221,5 +221,6 @@
   "avatar.notImage": "Das ist keine Bilddatei.",
   "toast.lyricsSaved": "Songtext gespeichert",
   "toast.lyricsSyncedSaved": "Songtext mit Zeitangaben gespeichert – Karaoke ist bereit",
-  "toast.storageFull": "Nicht gespeichert – zu groß für den Speicher"
+  "toast.storageFull": "Nicht gespeichert – zu groß für den Speicher",
+  "lyrics.fullscreen": "Vollbild"
 }

@@ -116,6 +116,7 @@ export async function openKaraoke({ title, sub, lyrics, synced, videoId, t }) {
   applySize();
   el.hidden = false;
   document.documentElement.classList.add('k-open');
+  try { if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch { /* nicht unterstützt */ }
   renderPlay();
   $('#k-close').focus();
 
@@ -152,6 +153,7 @@ export function closeKaraoke() {
   wake(false);
   el.hidden = true;
   document.documentElement.classList.remove('k-open');
+  try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch { /* egal */ }
 }
 
 export function bindKaraoke() {

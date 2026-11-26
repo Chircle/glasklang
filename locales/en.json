@@ -221,5 +221,6 @@
   "avatar.notImage": "That's not an image file.",
   "toast.lyricsSaved": "Lyrics saved",
   "toast.lyricsSyncedSaved": "Lyrics with timings saved – karaoke is ready",
-  "toast.storageFull": "Not saved – too large for storage"
+  "toast.storageFull": "Not saved – too large for storage",
+  "lyrics.fullscreen": "Full screen"
 }

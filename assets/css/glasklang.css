@@ -435,6 +435,12 @@ input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius
 .link-ext:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lyrics { display: grid; gap: .9rem; max-height: 420px; overflow-y: auto; padding-inline-end: 4px; }
 .ly-head { font-size: .74rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: .2rem; }
+.lyrics-wrap { position: relative; }
+.ly-expand { position: absolute; top: 0; inset-inline-end: 0; z-index: 2; }
+.lyrics[data-karaoke-tap] { cursor: zoom-in; padding-inline-end: 52px; }
+html.k-open { overflow: hidden; }
+html.k-open .dock, html.k-open .topbar { visibility: hidden; }
+.karaoke:fullscreen { background: var(--sky-grad); }
 .ly-lines { margin: 0; white-space: pre-line; font-size: .98rem; line-height: 1.65; }
 .fb, .fb-note { font-size: .66rem; font-weight: 700; letter-spacing: .06em; padding: .05rem .4rem; border-radius: var(--pill); background: var(--coral-soft); color: var(--coral); vertical-align: middle; }
 .fb-note { display: inline-block; margin-top: .6rem; letter-spacing: 0; font-weight: 600; }
@@ -556,6 +562,7 @@ html.k-open .dock { transform: translateY(140%); }
 
 @media (max-width: 640px) {
   .ly-form { grid-template-columns: 1fr; }
+  .lyrics { max-height: none; overflow: visible; }
   #lyrics-dialog .edit-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: .5rem; }
   #lyrics-dialog .edit-actions .grow { display: none; }
   #lyrics-dialog .ly-credit { grid-column: 1 / -1; text-align: center; }
