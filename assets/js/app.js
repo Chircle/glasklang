@@ -22,6 +22,8 @@ const EDIT_LANGS = ['de', 'en', 'fr', 'es', 'it', 'pt', 'nl', 'sv', 'da', 'no', 
 const VIEWS = ['katalog', 'technik', 'metronom'];
 const METRO_DEFAULT = { bpm: 96, meter: 4, sound: 'glas', volume: 0.7, accent: true };
 const mobile = matchMedia('(max-width: 900px)');
+const coarse = matchMedia('(pointer: coarse)');
+const haptic = (ms = 8) => { try { if (coarse.matches) navigator.vibrate?.(ms); } catch { /* egal */ } };
 const tEnum = (group, id) => t(`enum.${group}.${id}`);
 
 const S = {
@@ -123,7 +125,9 @@ function showGate(denied = null) {
 async function enterApp() {
   $('#gate').hidden = true;
   $('#app').hidden = false;
-  $('#demo-banner').hidden = !S.store.demo;
+  let demoHidden = false;
+  try { demoHidden = sessionStorage.getItem('glasklang-demo-hidden') === '1'; } catch { /* egal */ }
+  $('#demo-banner').hidden = !S.store.demo || demoHidden;
   $$('[data-owner-only]').forEach(el => { el.hidden = S.role !== 'owner'; });
 
   const name = S.user.displayName || S.user.email;
@@ -263,6 +267,10 @@ function apply() {
   $('#kpi-done').textContent = fmtNum(S.u.completed.length);
   const active = ['cat', 'mood', 'diff', 'reg', 'vlang', 'tech'].filter(k => S.f[k] !== 'ALL').length + (S.f.fav ? 1 : 0) + (q ? 1 : 0);
   $('#filter-note').textContent = active ? t('filter.active', { count: active }) : t('filter.none');
+  const sheetActive = active - (q ? 1 : 0);
+  $('#filter-count').hidden = !sheetActive;
+  $('#filter-count').textContent = sheetActive;
+  $('#filter-apply').textContent = t('filter.showResults', { count: S.list.length });
   $('#f-fav').setAttribute('aria-pressed', String(S.f.fav));
   $$('[data-action="plan"]').forEach(b => b.classList.toggle('is-on', S.f.fav));
   renderCards();
@@ -442,8 +450,64 @@ function renderInspector() {
   renderPrint(s);
 }
 
-function openSheet() { if (mobile.matches) $('#inspector').classList.add('is-open'); }
-function closeSheet() { $('#inspector').classList.remove('is-open'); }
+/* ------------------------------------------------- Bottom-Sheets (Handy) */
+function syncScrim() {
+  const any = $('#inspector').classList.contains('is-open') || $('#filterbar').classList.contains('is-open');
+  $('#scrim').hidden = !any;
+  document.documentElement.classList.toggle('sheet-open', any);
+}
+function openSheet() { if (!mobile.matches) return; $('#inspector').classList.add('is-open'); syncScrim(); }
+function closeSheet() { $('#inspector').classList.remove('is-open'); resetDrag($('#inspector')); syncScrim(); }
+function openFilters() {
+  if (!mobile.matches) return;
+  const fb = $('#filterbar');
+  fb.classList.add('is-open'); fb.scrollTop = 0;
+  $('#btn-filters').setAttribute('aria-expanded', 'true');
+  syncScrim();
+}
+function closeFilters() {
+  const fb = $('#filterbar');
+  fb.classList.remove('is-open'); resetDrag(fb);
+  $('#btn-filters').setAttribute('aria-expanded', 'false');
+  syncScrim();
+}
+function resetDrag(el) { el.style.transform = ''; el.classList.remove('is-dragging'); }
+
+/* Nach unten wischen schließt ein Sheet – am Griff oder wenn der Inhalt ganz oben steht */
+function swipeToClose(sheet, scroller, onClose) {
+  let y0 = null, dy = 0, t0 = 0, armed = false;
+  sheet.addEventListener('touchstart', e => {
+    if (!sheet.classList.contains('is-open') || e.touches.length !== 1) return;
+    const onGrip = !!e.target.closest('[data-grip], .fsheet-head');
+    armed = onGrip || scroller.scrollTop <= 0;
+    y0 = e.touches[0].clientY; dy = 0; t0 = performance.now();
+  }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    if (y0 == null || !armed) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0) { if (sheet.classList.contains('is-dragging')) resetDrag(sheet); return; }
+    if (scroller.scrollTop > 0 && !e.target.closest('[data-grip], .fsheet-head')) return;
+    e.preventDefault();
+    sheet.classList.add('is-dragging');
+    sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: false });
+  sheet.addEventListener('touchend', () => {
+    if (y0 == null) return;
+    const v = dy / Math.max(1, performance.now() - t0);
+    sheet.classList.remove('is-dragging');
+    if (armed && (dy > 110 || (dy > 40 && v > .6))) onClose();
+    else sheet.style.transform = '';
+    y0 = null; dy = 0;
+  });
+}
+
+/* Suchfeld: oben in der Kopfleiste (Desktop) bzw. in der klebenden Leiste über dem Katalog (Handy) */
+function placeSearch() {
+  const box = $('#search-box');
+  const target = mobile.matches ? $('#search-slot-mobile') : $('#search-slot-top');
+  if (box.parentElement !== target) target.appendChild(box);
+  if (!mobile.matches) { closeFilters(); closeSheet(); }
+}
 
 function select(id) {
   S.sel = id;
@@ -464,6 +528,7 @@ function toggleIn(listName, id, btn) {
     popIcon(b);
   });
   if (btn && !btn.classList.contains('icon-btn')) popIcon(btn);
+  haptic(on ? 12 : 6);
   $('#kpi-favs').textContent = fmtNum(S.u.favorites.length);
   $('#kpi-done').textContent = fmtNum(S.u.completed.length);
   if (listName === 'favorites') fillMetroSongs();
@@ -581,7 +646,7 @@ function route() {
     if (on && changed && !reduced) { el.classList.remove('view-in'); void el.offsetWidth; el.classList.add('view-in'); }
   });
   $$('.dock-item[data-go]').forEach(a => a.classList.toggle('is-on', a.dataset.go === view));
-  if (view !== 'katalog') closeSheet();
+  if (view !== 'katalog') { closeSheet(); closeFilters(); }
   if (view === 'technik') requestAnimationFrame(renderBubbles);
   if (changed) window.scrollTo({ top: 0 });
 }
@@ -603,10 +668,22 @@ function metroBeat(idx, level, count) {
 function metroLabels() {
   const on = metro.running, c = metro.config;
   $('#m-go').textContent = t(on ? 'metro.stop' : 'metro.start');
-  $('#m-hint').textContent = t(on ? 'metro.hintStop' : 'metro.hintStart');
+  $('#m-hint').textContent = t(on ? 'metro.hintStop' : (coarse.matches ? 'metro.hintStartTouch' : 'metro.hintStart'));
   $('#m-name').textContent = tempoName(c.bpm) + (c.meter >= 6 ? ' · ' + t('metro.eighths') : '');
 }
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && metro?.running) keepAwake(true); });
 function metroState(on) {
+  keepAwake(on); // Bildschirm bleibt an, solange das Metronom läuft
+  haptic(on ? 15 : 8);
   $('.metro').classList.toggle('is-running', on);
   $('.dock-metro').classList.toggle('is-running', on);
   metroLabels();
@@ -701,6 +778,12 @@ function bind() {
   $('#f-fav').addEventListener('click', () => { S.f.fav = !S.f.fav; apply(); });
   $('#tech-chips').addEventListener('click', e => { const c = e.target.closest('[data-tech]'); if (c) setTech(c.dataset.tech); });
   $('#f-reset').addEventListener('click', resetFilters);
+  $('#btn-filters').addEventListener('click', openFilters);
+  $$('[data-close-filters]').forEach(b => b.addEventListener('click', closeFilters));
+  $('#scrim').addEventListener('click', () => { closeSheet(); closeFilters(); });
+  swipeToClose($('#inspector'), $('#inspector-inner'), closeSheet);
+  swipeToClose($('#filterbar'), $('#filterbar'), closeFilters);
+  $('#demo-close').addEventListener('click', () => { $('#demo-banner').hidden = true; try { sessionStorage.setItem('glasklang-demo-hidden', '1'); } catch { /* egal */ } });
   $$('.seg-btn').forEach(b => b.addEventListener('click', () => {
     S.layout = b.dataset.layout;
     $$('.seg-btn').forEach(x => x.classList.toggle('is-on', x === b));
@@ -721,8 +804,6 @@ function bind() {
     if (!e.target.closest('.lang-pick')) $$('[data-lang-menu]').forEach(m => { m.hidden = true; });
     if (e.target.closest('[data-theme-switch]')) return toggleTheme();
 
-    const sheet = $('#inspector');
-    if (sheet.classList.contains('is-open') && !sheet.contains(e.target) && !e.target.closest('dialog')) { closeSheet(); return; }
 
     const fav = e.target.closest('[data-fav]');
     if (fav) { e.stopPropagation(); return toggleIn('favorites', fav.dataset.fav, fav); }
@@ -766,7 +847,7 @@ function bind() {
     if (card && (e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); select(card.dataset.id); }
   });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeSheet(); $('#user-menu').hidden = true; $$('[data-lang-menu]').forEach(m => { m.hidden = true; }); }
+    if (e.key === 'Escape') { closeSheet(); closeFilters(); $('#user-menu').hidden = true; $$('[data-lang-menu]').forEach(m => { m.hidden = true; }); }
   });
   document.addEventListener('input', e => {
     if (e.target.matches('[data-note]')) {
@@ -809,7 +890,8 @@ function bind() {
   addEventListener('hashchange', route);
   let rT;
   addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (S.view === 'technik') renderBubbles(); }, 200); });
-  mobile.addEventListener('change', () => { if (!mobile.matches) closeSheet(); });
+  mobile.addEventListener('change', placeSearch);
+  placeSearch();
 }
 
 /* ------------------------------------------------------------- Start */

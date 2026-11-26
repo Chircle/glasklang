@@ -189,5 +189,12 @@
   "toast.metroSong": "Metronome: {title} · {bpm} BPM",
   "toast.versionSaved": "Version saved",
   "toast.versionDeleted": "Version deleted",
-  "meta.review": "Unverified data – please check key, range and tempo against the sheet music and complete them in Firestore."
+  "meta.review": "Unverified data – please check key, range and tempo against the sheet music and complete them in Firestore.",
+  "filter.open": "Filters",
+  "filter.showResults": {
+    "one": "Show {count} song",
+    "other": "Show {count} songs"
+  },
+  "metro.hintStartTouch": "Tap the sphere to start",
+  "common.dismiss": "Dismiss"
 }

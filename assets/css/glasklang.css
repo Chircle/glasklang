@@ -617,11 +617,11 @@ input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius
   .metro-stage { min-height: 0; padding: var(--sp-5) var(--sp-4) var(--sp-4); }
   .orb--metro { --size: clamp(180px, 50vw, 260px); }
   .metro-word { font-size: clamp(8rem, 44vw, 14rem); }
-  .explorer { grid-template-columns: 1fr; }
+  .explorer { grid-template-columns: minmax(0, 1fr); }
   /* Inspektor als Bottom-Sheet */
   .inspector { position: fixed; inset: auto 0 0 0; z-index: 50; top: auto; transform: translateY(105%); transition: transform 480ms var(--ease-out); }
   .inspector.is-open { transform: none; box-shadow: 0 0 0 100vmax rgba(20, 20, 70, .28); }
-  .inspector-inner { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 88vh; padding-bottom: calc(var(--sp-6) + env(safe-area-inset-bottom)); }
+  .inspector-inner { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 92dvh; padding-bottom: calc(var(--sp-6) + env(safe-area-inset-bottom)); }
   .insp-back { display: inline-grid; }
   .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .meta > div:nth-child(3) { border-inline-start: 0; }
@@ -645,6 +645,185 @@ input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius
   .page { gap: var(--sp-5); }
   .card-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .cards[data-layout="list"] .card { grid-template-columns: 1fr; }
+}
+
+
+/* ==========================================================================
+   MOBILE FIRST – Handy ist die Hauptnutzung
+   ========================================================================== */
+.search-slot { display: flex; justify-content: center; min-width: 0; }
+.page, .view, .view > *, .explorer > *, .cards > * { min-width: 0; }
+.search-slot .search { width: 100%; }
+.m-toolbar, .fsheet-head, .fsheet-foot, .sheet-grip { display: none; }
+.scrim { position: fixed; inset: 0; z-index: 48; background: rgba(12, 14, 40, .38); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); animation: fade-in 240ms ease; }
+@keyframes fade-in { from { opacity: 0; } }
+.count-dot { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; display: inline-grid; place-items: center; font-size: .72rem; background: var(--accent-grad); color: var(--accent-ink); }
+.demo-banner { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.icon-btn--sm { width: 32px; height: 32px; flex: none; }
+html.sheet-open { overflow: hidden; }
+html.sheet-open .dock { transform: translateY(140%); }
+.dock { transition: transform 360ms var(--ease-out); }
+
+/* Hover-Effekte nur dort, wo es echtes Hover gibt (kein „klebendes“ Hover nach dem Antippen) */
+@media (hover: none) {
+  .btn:hover, .chip:hover, .lang-btn:hover, .icon-btn:hover { transform: none; }
+  .btn:hover::after { translate: -120% 0; }
+  .card:hover { background: var(--glass); }
+  .card.is-selected:hover { background: var(--glass-deep); }
+  .bubble:hover { animation: bob 6s ease-in-out infinite; animation-delay: var(--d, 0s); }
+}
+/* Touch: mindestens 44 px Tippfläche, kein Zoom-Sprung auf iOS (Schrift ≥ 16 px in Feldern) */
+@media (pointer: coarse) {
+  input, select, textarea, .pill-select select { font-size: 16px !important; }
+  .seg { min-height: 44px; }
+  .seg-btn { width: 44px; height: 40px; }
+  .chip { min-height: 44px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .card-actions .icon-btn { width: 44px; height: 44px; }
+  button, a, input, select, textarea, .card { -webkit-tap-highlight-color: transparent; }
+  .card:active { transform: scale(.985); }
+}
+
+@media (max-width: 900px) {
+  /* Kopfleiste: einzeilig, scrollt mit weg – Navigation übernimmt das Dock */
+  .topbar { position: relative; top: auto; margin-top: max(10px, env(safe-area-inset-top)); }
+  #search-slot-top { display: none; }
+  .topbar { grid-template-columns: auto 1fr; }
+  .topbar-end { grid-column: 2; }
+
+  /* Such- & Filterleiste klebt im Katalog oben */
+  .m-toolbar { display: flex; gap: .5rem; position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 25; padding: 6px; margin: 0 -6px; border-radius: var(--pill);
+    background: color-mix(in srgb, var(--sky-base) 55%, transparent); -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%); }
+  .m-toolbar .search-slot { flex: 1; }
+  .m-toolbar .search { max-width: none; background: var(--glass-strong); }
+  .m-filter-btn { flex: none; min-height: 44px; padding: 0 1rem; }
+
+  /* Filter als Bottom-Sheet */
+  .filterbar { position: fixed; inset: auto 0 0 0; z-index: 50; border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain;
+    padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform 420ms var(--ease-out), visibility 0s linear 420ms;
+    background: var(--glass-deep), color-mix(in srgb, var(--sky-base) 88%, transparent); box-shadow: 0 -20px 60px -20px rgba(0,0,0,.45); visibility: hidden; }
+  .filterbar.is-open { transform: none; visibility: visible; transition: transform 420ms var(--ease-out), visibility 0s; }
+  .fsheet-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .5rem; position: relative; padding-top: 14px; }
+  .fsheet-head .tile-title { margin: 0; }
+  .fsheet-foot { display: block; position: sticky; bottom: calc(-1 * (var(--sp-4) + env(safe-area-inset-bottom))); margin: 0 calc(-1 * var(--sp-4)); padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom));
+    background: linear-gradient(transparent, color-mix(in srgb, var(--sky-base) 85%, transparent) 30%); }
+  .fsheet-foot .btn { width: 100%; }
+  .filter-row { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+  .pill-select { width: 100%; min-height: 48px; }
+  .filterbar .pill-select > span { min-width: 7.5rem; justify-content: start; }
+  .pill-select select { flex: 1; min-width: 0; }
+  .filter-end { margin: .3rem 0 0; display: flex; flex-wrap: wrap; gap: .5rem; width: 100%; }
+  .filter-end #f-fav { flex: 1; justify-content: center; }
+
+  .sheet-grip { display: block; position: absolute; top: 8px; left: 50%; translate: -50% 0; width: 44px; height: 5px; border-radius: 99px; background: var(--ink-faint); opacity: .55; z-index: 3; cursor: grab; touch-action: none; }
+  .sheet-grip::after { content: ""; position: absolute; inset: -16px -40px; } /* große Greiffläche */
+
+  /* Song-Blatt als Bottom-Sheet mit Griff */
+  .inspector { top: auto; }
+  .inspector .sheet-grip { top: 10px; }
+  .inspector-inner { max-height: 92dvh; padding-top: calc(var(--sp-5) + 10px); overscroll-behavior: contain; background: var(--glass-deep), color-mix(in srgb, var(--sky-base) 90%, transparent); }
+  .inspector.is-dragging, .filterbar.is-dragging { transition: none; }
+
+  /* Dialoge als vollflächige Sheets von unten */
+  .sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 94dvh; padding-bottom: calc(var(--sp-5) + env(safe-area-inset-bottom)); }
+  .sheet.sheet--wide { width: 100%; }
+  .notes.notes--tall { min-height: 30dvh; }
+  .edit-actions { position: sticky; bottom: calc(-1 * (var(--sp-5) + env(safe-area-inset-bottom))); margin: 0 calc(-1 * var(--sp-5)); padding: var(--sp-3) var(--sp-5) calc(var(--sp-3) + env(safe-area-inset-bottom));
+    background: linear-gradient(transparent, color-mix(in srgb, var(--sky-base) 90%, transparent) 25%); }
+
+  /* Metronom kompakt: Kugel, Tempo und Start ohne Scrollen */
+  .metro-stage { min-height: 0; padding: var(--sp-4) var(--sp-4) var(--sp-3); grid-template-rows: auto auto auto; }
+  .orb--metro { --size: clamp(140px, min(46vw, 26dvh), 230px); }
+  .metro-word { font-size: clamp(7rem, 40vw, 12rem); }
+  .beat-dots { margin-top: var(--sp-4); }
+  .metro-panel { padding: var(--sp-4); gap: var(--sp-3); }
+  .metro-bpm { font-size: 3.2rem; }
+  #m-tap { min-width: 72px; min-height: 72px; }
+  .metro .segmented { display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 18px; }
+  #m-sound.segmented { grid-template-columns: repeat(4, 1fr); }
+  .metro-panel > * { order: 5; }
+  .metro-panel > .metro-tempo { order: 1; }
+  .metro-panel > .metro-slider { order: 2; }
+  .metro-panel > .metro-go { order: 3; margin-bottom: var(--sp-2); }
+  .sphere--3 { display: none; }
+
+  /* Dock mit kleinen Beschriftungen, über dem Home-Indikator */
+  .dock { bottom: max(10px, env(safe-area-inset-bottom)); padding: .35rem .4rem; }
+  .dock-item { min-width: 60px; min-height: 52px; padding: .4rem .3rem .3rem; }
+  .dock-item span { display: block; font-size: .64rem; }
+}
+
+@media (max-width: 640px) {
+  .page { width: calc(100% - 20px); padding-top: var(--sp-3); gap: var(--sp-4); padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  .topbar { width: calc(100% - 20px); padding: .4rem .4rem .4rem .9rem; border-radius: var(--pill); }
+  .topbar .brand { font-size: 1rem; min-height: 44px; }
+  .demo-banner { width: calc(100% - 20px); border-radius: var(--r-md); padding: .45rem .5rem .45rem .9rem; font-size: .76rem; line-height: 1.35; }
+  .controls { gap: .3rem; }
+  .lang-btn { min-height: 40px; padding: 0 .65rem; }
+  .switch-track { width: 62px; height: 40px; }
+  [data-theme="dark"] .switch-thumb { inset-inline-start: 27px; }
+  .user-chip { padding: .2rem .3rem .2rem .2rem; gap: .2rem; }
+
+  /* Kopf der Datenbank: Titel + kompakte Kennzahlen-Leiste */
+  .view-head { padding-top: var(--sp-2); gap: var(--sp-3); }
+  .view-title { font-size: 2.1rem; }
+  .kpis { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: .4rem; width: calc(100% + 20px); margin: 0 -10px; padding: 0 10px 4px; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .kpis::-webkit-scrollbar { display: none; }
+  .kpi { flex: none; display: flex; align-items: baseline; gap: .35rem; padding: .45rem .8rem; min-width: 0; border-radius: var(--pill); scroll-snap-align: start; }
+  .kpi-num { font-size: 1.15rem; }
+  .kpi-lbl { font-size: .78rem; white-space: nowrap; }
+
+  /* Kompakte Song-Karten: ~3× so viele Songs pro Bildschirm */
+  .cards { grid-template-columns: minmax(0, 1fr); gap: .55rem; }
+  .card { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "mono main actions" "mono facts actions"; column-gap: .75rem; row-gap: .25rem;
+    padding: .75rem .7rem .75rem .8rem; border-radius: var(--r-md); align-items: center; contain-intrinsic-size: 360px 96px;
+    -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--glass) 100%, color-mix(in srgb, var(--sky-base) 35%, transparent)); }
+  .card-top { display: contents; }
+  .card-top .mono { grid-area: mono; width: 36px; height: 36px; font-size: .7rem; align-self: start; margin-top: 2px; }
+  .card-top .card-badges { display: none; }
+  .card > div:nth-child(2) { grid-area: main; min-width: 0; }
+  .card-title { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-alt { font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-artist { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-facts { grid-area: facts; display: flex; gap: .35rem; padding: 0; border: 0; font-size: .78rem; color: var(--ink-soft); min-width: 0; overflow: hidden; }
+  .card-facts > div { white-space: nowrap; }
+  .card-facts > div + div::before { content: "·"; margin-inline-end: .35rem; color: var(--ink-faint); }
+  .card-facts .fact-l { display: none; }
+  .card-facts .fact-v { font-size: .78rem; font-weight: 500; display: inline; }
+  .card-foot { grid-area: actions; display: block; }
+  .card-foot .badges { display: none; }
+  .card-actions { gap: 4px; }
+  .card-actions [data-done] { display: none; } /* „gemeistert“ im Song-Blatt */
+  .card-actions .icon-btn { width: 44px; height: 44px; }
+  .cards[data-layout="list"] .card { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .seg-icons { display: none; }
+
+  .tile { padding: var(--sp-4); border-radius: var(--r-lg); }
+  .bubbles { min-height: 340px; }
+  .view-head .view-title { line-height: 1.05; }
+  .toast { bottom: calc(96px + env(safe-area-inset-bottom)); max-width: calc(100% - 32px); text-align: center; }
+
+  .insp-title { font-size: 1.7rem; }
+  .row-actions { flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(-1 * var(--sp-5)); padding: 2px var(--sp-5) 6px; scrollbar-width: none; }
+  .row-actions::-webkit-scrollbar { display: none; }
+  .row-actions .btn { flex: none; min-height: 42px; }
+  .versions-head { flex-direction: column; align-items: stretch; }
+  .versions-head .segmented { align-self: stretch; overflow-x: auto; flex-wrap: nowrap; }
+  .version-top { flex-direction: column; }
+  .lyrics { max-height: none; }
+  .ly-lines { font-size: 1.02rem; }
+}
+
+@media (max-width: 360px) {
+  .dock-item { min-width: 54px; }
+  .topbar .brand-name { display: none; }
+}
+
+/* Querformat auf dem Handy: Metronom nebeneinander */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .metro { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+  .orb--metro { --size: 150px; }
+  .metro-go { position: static; }
 }
 
 /* ---------- Bewegung reduzieren ---------- */

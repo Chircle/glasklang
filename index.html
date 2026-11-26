@@ -7,6 +7,13 @@
   <meta name="description" content="Glasklang – Repertoire & vocal technique · Repertoire & Gesangstechnik">
   <meta name="theme-color" content="#e8eafb">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="assets/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Glasklang">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Figtree:ital,wght@0,300..800;1,400&display=swap" rel="stylesheet">
@@ -66,12 +73,12 @@
   <!-- ============ App ============ -->
   <div class="app" id="app" hidden>
     <header class="topbar glass">
-      <a class="brand" href="#/katalog"><span class="brand-dot" aria-hidden="true"></span>Glasklang</a>
-      <label class="search pill-field">
+      <a class="brand" href="#/katalog"><span class="brand-dot" aria-hidden="true"></span><span class="brand-name">Glasklang</span></a>
+      <div class="search-slot" id="search-slot-top"><label class="search pill-field" id="search-box">
         <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
         <span class="sr-only" data-i18n="search.label"></span>
-        <input type="search" id="search-input" autocomplete="off" data-i18n-attr="placeholder:search.placeholder">
-      </label>
+        <input type="search" id="search-input" autocomplete="off" enterkeyhint="search" data-i18n-attr="placeholder:search.placeholder">
+      </label></div>
       <div class="topbar-end">
         <span class="sync" id="sync-label" aria-live="polite"></span>
         <div data-controls></div>
@@ -88,7 +95,7 @@
       </div>
     </header>
 
-    <div class="demo-banner glass" id="demo-banner" hidden><strong data-i18n="demo.title"></strong> · <span data-i18n="demo.text"></span></div>
+    <div class="demo-banner glass" id="demo-banner" hidden><span><strong data-i18n="demo.title"></strong> · <span data-i18n="demo.text"></span></span><button type="button" class="icon-btn icon-btn--sm" id="demo-close" data-i18n-attr="aria-label:common.dismiss"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-x"/></svg></button></div>
 
     <main class="page">
       <!-- ================= Datenbank ================= -->
@@ -115,7 +122,19 @@
           <button type="button" class="btn btn--primary" id="btn-seed" data-i18n="seed.button"></button>
         </section>
 
-        <section class="glass filterbar" data-i18n-attr="aria-label:filter.label">
+        <div class="m-toolbar" id="m-toolbar">
+          <div class="search-slot" id="search-slot-mobile"></div>
+          <button type="button" class="btn m-filter-btn" id="btn-filters" aria-controls="filterbar" aria-expanded="false">
+            <svg class="ico ico--sm" aria-hidden="true"><use href="#i-sliders"/></svg><span data-i18n="filter.open"></span><b class="count-dot" id="filter-count" hidden></b>
+          </button>
+        </div>
+
+        <section class="glass filterbar" id="filterbar" data-i18n-attr="aria-label:filter.label">
+          <div class="fsheet-head">
+            <span class="sheet-grip" data-grip="filterbar" aria-hidden="true"></span>
+            <h2 class="tile-title" data-i18n="filter.label"></h2>
+            <button type="button" class="icon-btn" data-close-filters data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+          </div>
           <div class="filter-row">
             <label class="pill-select"><span data-i18n="filter.category"></span><select id="f-cat"></select></label>
             <label class="pill-select"><span data-i18n="filter.mood"></span><select id="f-mood" data-enum="mood"></select></label>
@@ -135,11 +154,13 @@
             </div>
           </div>
           <div class="chips" id="tech-chips"></div>
+          <div class="fsheet-foot"><button type="button" class="btn btn--primary btn--lg" data-close-filters id="filter-apply"></button></div>
         </section>
 
         <section class="explorer">
           <div class="cards" id="cards" data-layout="grid"></div>
           <aside class="inspector" id="inspector" data-i18n-attr="aria-label:sheet.label">
+            <span class="sheet-grip" data-grip="inspector" aria-hidden="true"></span>
             <div class="inspector-inner glass-deep" id="inspector-inner"></div>
           </aside>
         </section>
@@ -232,6 +253,7 @@
       <button type="button" class="dock-item" data-action="plan"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="dock.plan"></span></button>
       <button type="button" class="dock-item" data-action="members" data-owner-only hidden><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span data-i18n="dock.team"></span></button>
     </nav>
+    <div class="scrim" id="scrim" hidden></div>
   </div>
 
   <!-- Mitglieder -->
@@ -299,6 +321,7 @@
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
       <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
       <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
     </defs>
   </svg>

@@ -19,6 +19,17 @@ Login mit Google, Daten in Firebase Firestore, gehostet auf GitHub Pages. Es gib
 - Zwei Designs: **Tageslicht** und **Dämmerung**.
 - Demo-Modus ohne Firebase. Er startet automatisch, solange `firebase-config.js` nicht ausgefüllt ist, oder mit `?demo` in der URL.
 
+## Auf dem Handy
+
+Die App ist für Handys gebaut und läuft genauso auf Tablet und Desktop.
+
+- **Kopfleiste:** einzeilig. Die Suche und ein **Filter**-Knopf kleben beim Scrollen oben über dem Katalog.
+- **Filter:** Sie öffnen als Bottom-Sheet, mit einem Knopf „N Songs anzeigen“.
+- **Song-Karten:** kompakt, etwa 8 Songs pro Bildschirm. Ein Tipp öffnet das Unterrichtsblatt als Sheet. Nach unten wischen schließt es.
+- **Metronom:** Kugel, Tempo und Start-Knopf passen auf den ersten Bildschirm. Solange es läuft, bleibt der Bildschirm an.
+- **Bedienung:** Alle Tippflächen sind mindestens 44 px groß. Eingabefelder haben 16 px Schrift, damit das iPhone beim Antippen nicht ins Bild zoomt. Abstände berücksichtigen Notch und Home-Indikator.
+- **Als App installieren:** im Browser-Menü „Zum Home-Bildschirm“ wählen. Glasklang startet dann im Vollbild mit eigenem Icon.
+
 ## Projektstruktur
 
 ```
@@ -28,6 +39,8 @@ assets/js/app.js             UI-Logik
 assets/js/motion.js          Animationen & Interaktion
 assets/js/metronome.js       Metronom (Web Audio)
 assets/js/store.js           Firebase- bzw. Demo-Datenschicht
+assets/manifest.webmanifest  App-Manifest (Home-Bildschirm)
+assets/icons/                App-Icons
 assets/js/firebase-config.js Platzhalter, wird beim Deploy aus den Secrets erzeugt
 tools/write-config.mjs       erzeugt die Konfiguration
 .github/workflows/deploy.yml Prüfen + Deploy auf GitHub Pages

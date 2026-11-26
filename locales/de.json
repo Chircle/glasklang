@@ -189,5 +189,12 @@
   "toast.metroSong": "Metronom: {title} · {bpm} BPM",
   "toast.versionSaved": "Fassung gespeichert",
   "toast.versionDeleted": "Fassung gelöscht",
-  "meta.review": "Angaben ungeprüft – Tonart, Umfang und Tempo bitte mit den Noten abgleichen und in Firestore ergänzen."
+  "meta.review": "Angaben ungeprüft – Tonart, Umfang und Tempo bitte mit den Noten abgleichen und in Firestore ergänzen.",
+  "filter.open": "Filter",
+  "filter.showResults": {
+    "one": "{count} Song anzeigen",
+    "other": "{count} Songs anzeigen"
+  },
+  "metro.hintStartTouch": "Kugel antippen zum Starten",
+  "common.dismiss": "Ausblenden"
 }
