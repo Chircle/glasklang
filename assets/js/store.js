@@ -1,182 +1,137 @@
-// Glasklang · Vollbild-Songtext: Karaoke (synchronisiert) oder Großansicht (reiner Text)
-// Zeitquelle: eingebettetes YouTube-Video (IFrame-API) oder eine eigene Uhr.
-import { parseLRC } from './lyrics.js';
+// Datenschicht: Firebase (Auth + Firestore) oder Demo (seed.json + localStorage)
+// Glasklang ist eine Ein-Personen-App: Lesen und Schreiben darf nur das Besitzer-Konto (siehe firestore.rules).
+import { firebaseConfig } from './firebase-config.js';
 
-const $ = (s, r = document) => r.querySelector(s);
-const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
-const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
+const emptyState = () => ({ favorites: [], completed: [], notes: {}, theme: null, lang: null, metronome: null });
 
-let ytReady = null;
-function loadYT() {
-  if (window.YT?.Player) return Promise.resolve();
-  if (ytReady) return ytReady;
-  ytReady = new Promise((resolve, reject) => {
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => { prev?.(); resolve(); };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = () => { ytReady = null; reject(new Error('yt')); };
-    document.head.appendChild(s);
-  });
-  return ytReady;
+export function isDemo() {
+  return /[?&]demo\b/.test(location.search) || !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('DEIN_');
 }
 
-const K = { lines: [], idx: -1, offset: 0, playing: false, clock: 0, clockStart: 0, player: null, raf: 0, size: 1, wake: null, t: k => k };
-
-function now() {
-  if (K.player?.getCurrentTime) return K.player.getCurrentTime() + K.offset;
-  return (K.playing ? K.clock + (performance.now() - K.clockStart) / 1000 : K.clock) + K.offset;
-}
-function duration() {
-  const d = K.player?.getDuration?.();
-  return d > 0 ? d : (K.lines.at(-1)?.t || 0) + 6;
+export async function createStore() {
+  return isDemo() ? createDemoStore() : createFirebaseStore();
 }
 
-async function wake(on) {
-  try {
-    if (on && 'wakeLock' in navigator && !K.wake) K.wake = await navigator.wakeLock.request('screen');
-    else if (!on && K.wake) { await K.wake.release(); K.wake = null; }
-  } catch { K.wake = null; }
+/* ------------------------------------------------------------------ Demo */
+function createDemoStore() {
+  const KEY = 'glasklang-demo-state';
+  const SONGS_KEY = 'glasklang-demo-songs';
+  const ART_KEY = 'glasklang-demo-artists';
+  const user = { uid: 'demo', displayName: 'Demo', email: 'demo@glasklang.local', photoURL: '' };
+  let seedCache = null;
+  const seed = async () => (seedCache ??= await (await fetch('data/seed.json')).json());
+  const readJSON = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) || fallback; } catch { return fallback; } };
+  const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { throw new Error('storage-full'); } };
+
+  return {
+    demo: true,
+    onAuth(cb) { setTimeout(() => cb(user), 0); },
+    async signIn() {},
+    async signOut() { location.reload(); },
+    async access() { return true; },
+    async songs() { const p = readJSON(SONGS_KEY, {}); return (await seed()).songs.map(s => ({ ...s, ...(p[s.id] || {}) })); },
+    async categories() { return (await seed()).categories || []; },
+    async compendium() { return (await seed()).compendium; },
+    async updateSong(id, patch) { const p = readJSON(SONGS_KEY, {}); p[id] = { ...(p[id] || {}), ...patch }; writeJSON(SONGS_KEY, p); },
+    async artists() { return readJSON(ART_KEY, {}); },
+    async setArtistImage(key, image, name) {
+      const a = readJSON(ART_KEY, {});
+      if (image) a[key] = { image, name }; else delete a[key];
+      writeJSON(ART_KEY, a);
+    },
+    async loadUserState() {
+      return readJSON(KEY, null) || { ...emptyState(), favorites: ['af1', 'af2', 'af3', 'wk1', 'ag1'], completed: ['kc1', 'af1'] };
+    },
+    async saveUserState(s) { writeJSON(KEY, s); },
+    async importSeed() { return 0; }
+  };
 }
 
-function setPlaying(on) {
-  if (K.player) { on ? K.player.playVideo() : K.player.pauseVideo(); }
-  else if (on && !K.playing) { K.clockStart = performance.now(); }
-  else if (!on && K.playing) { K.clock += (performance.now() - K.clockStart) / 1000; }
-  K.playing = on;
-  renderPlay();
-  wake(on);
-}
-function seek(sec) {
-  const target = Math.max(0, sec - K.offset);
-  if (K.player?.seekTo) K.player.seekTo(target, true);
-  else { K.clock = target; K.clockStart = performance.now(); }
-  K.idx = -2;
-}
-function renderPlay() {
-  const b = $('#k-play');
-  if (!b) return;
-  b.querySelector('use').setAttribute('href', K.playing ? '#i-pause' : '#i-play');
-  b.setAttribute('aria-label', K.t(K.playing ? 'karaoke.pause' : 'karaoke.play'));
-}
+/* -------------------------------------------------------------- Firebase */
+async function createFirebaseStore() {
+  const [{ initializeApp }, authMod, fs] = await Promise.all([
+    import(FB + 'firebase-app.js'),
+    import(FB + 'firebase-auth.js'),
+    import(FB + 'firebase-firestore.js')
+  ]);
+  const { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } = authMod;
+  const { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } = fs;
 
-function tick() {
-  const box = $('#k-lines');
-  if (!box) return;
-  const tNow = now();
-  let i = -1;
-  for (let j = 0; j < K.lines.length; j++) { if (K.lines[j].t <= tNow + 0.05) i = j; else break; }
-  if (i !== K.idx) {
-    K.idx = i;
-    box.querySelectorAll('.k-line').forEach((el, j) => {
-      el.classList.toggle('is-now', j === i);
-      el.classList.toggle('is-past', j < i);
-    });
-    const cur = box.children[Math.max(0, i)];
-    if (cur) box.scrollTo({ top: cur.offsetTop - box.clientHeight * 0.38, behavior: reduced ? 'auto' : 'smooth' });
-  }
-  const d = duration();
-  $('#k-time').textContent = `${fmt(tNow)} / ${fmt(d)}`;
-  const seekEl = $('#k-seek');
-  if (seekEl && document.activeElement !== seekEl) { seekEl.max = Math.round(d * 10); seekEl.value = Math.round(Math.max(0, tNow) * 10); }
-  if (!K.player && K.playing && tNow > d) setPlaying(false);
-  K.raf = requestAnimationFrame(tick);
-}
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
 
-function applySize() { $('#karaoke').style.setProperty('--k-size', K.size); }
+  return {
+    demo: false,
+    onAuth(cb) { onAuthStateChanged(auth, cb); },
+    async signIn() {
+      try { await signInWithPopup(auth, provider); }
+      catch (e) {
+        if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+          await signInWithRedirect(auth, provider);
+        } else throw e;
+      }
+    },
+    async signOut() { await signOut(auth); },
 
-/** Öffnet die Vollbild-Ansicht. synced (LRC) → Karaoke, sonst Großansicht des reinen Texts. */
-export async function openKaraoke({ title, sub, lyrics, synced, videoId, t }) {
-  const el = $('#karaoke');
-  K.t = t; K.lines = synced ? parseLRC(synced) : []; K.idx = -1; K.offset = 0; K.clock = 0; K.playing = false; K.player = null;
-  try { K.size = Number(localStorage.getItem('glasklang-k-size')) || 1; } catch { K.size = 1; }
-  const isSync = K.lines.length > 0;
-  el.classList.toggle('is-sync', isSync);
-  $('#k-title').textContent = title;
-  $('#k-sub').textContent = sub;
-  $('#k-mode').textContent = t(isSync ? 'karaoke.modeSync' : 'karaoke.modePlain');
+    // Zugang = die Firestore-Regeln lassen dieses Konto lesen. Keine E-Mail-Adresse im ausgelieferten Code.
+    async access() {
+      try { await getDoc(doc(db, 'meta', 'categories')); return true; } catch { return false; }
+    },
 
-  const box = $('#k-lines');
-  if (isSync) {
-    box.innerHTML = K.lines.map((l, i) => `<button type="button" class="k-line${l.text ? '' : ' k-gap'}" data-k-seek="${l.t}" data-i="${i}">${l.text ? esc(l.text) : '♪'}</button>`).join('')
-      + '<div class="k-tail" aria-hidden="true"></div>';
-  } else {
-    box.innerHTML = `<div class="k-plain">${String(lyrics || '').replace(/\r/g, '').split('\n').map(line => {
-      const m = line.trim().match(/^\[(.+)\]$/);
-      return m ? `<div class="k-head-line">${esc(m[1])}</div>` : `<div class="k-plain-line">${esc(line) || '&nbsp;'}</div>`;
-    }).join('')}</div>`;
-  }
-  box.scrollTop = 0;
+    async songs() {
+      const snap = await getDocs(collection(db, 'songs'));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    },
+    async categories() {
+      const snap = await getDoc(doc(db, 'meta', 'categories'));
+      return snap.exists() ? (snap.data().items || []) : [];
+    },
+    async compendium() {
+      const snap = await getDoc(doc(db, 'meta', 'compendium'));
+      return snap.exists() ? (snap.data().items || []) : [];
+    },
+    async updateSong(id, patch) { await updateDoc(doc(db, 'songs', id), { ...patch, updatedAt: serverTimestamp() }); },
 
-  const vid = $('#k-video');
-  vid.innerHTML = '';
-  vid.hidden = !(isSync && videoId);
-  $('#k-source').textContent = isSync ? t(videoId ? 'karaoke.sourceVideo' : 'karaoke.sourceClock') : '';
-  applySize();
-  el.hidden = false;
-  document.documentElement.classList.add('k-open');
-  renderPlay();
-  $('#k-close').focus();
+    async artists() {
+      const snap = await getDocs(collection(db, 'artists'));
+      return Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
+    },
+    async setArtistImage(key, image, name) {
+      if (image) await setDoc(doc(db, 'artists', key), { image, name, updatedAt: serverTimestamp() });
+      else await deleteDoc(doc(db, 'artists', key));
+    },
 
-  if (isSync && videoId) {
-    try {
-      await loadYT();
-      const holder = document.createElement('div');
-      vid.appendChild(holder);
-      await new Promise(resolve => {
-        K.player = new window.YT.Player(holder, {
-          videoId, host: 'https://www.youtube-nocookie.com',
-          playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
-          events: {
-            onReady: resolve,
-            onStateChange: e => { K.playing = e.data === 1; renderPlay(); wake(K.playing); }
-          }
-        });
-      });
-    } catch {
-      K.player = null; vid.hidden = true;
-      $('#k-source').textContent = t('karaoke.sourceClock');
+    async loadUserState() {
+      const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      return snap.exists() ? { ...emptyState(), ...snap.data() } : emptyState();
+    },
+    async saveUserState(s) {
+      await setDoc(doc(db, 'users', auth.currentUser.uid), {
+        favorites: s.favorites, completed: s.completed, notes: s.notes, theme: s.theme, lang: s.lang || null, metronome: s.metronome || null,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    },
+
+    // Schreibt nur Songs, die es noch nicht gibt – eigene Texte bleiben unangetastet.
+    async importSeed() {
+      const seed = await (await fetch('data/seed.json')).json();
+      const existing = new Set((await getDocs(collection(db, 'songs'))).docs.map(d => d.id));
+      const batch = writeBatch(db);
+      let n = 0;
+      for (const s of seed.songs) {
+        if (existing.has(s.id)) continue;
+        const { id, ...data } = s;
+        batch.set(doc(db, 'songs', id), data);
+        n++;
+      }
+      batch.set(doc(db, 'meta', 'compendium'), { items: seed.compendium }, { merge: true });
+      batch.set(doc(db, 'meta', 'categories'), { items: seed.categories || [] }, { merge: true });
+      await batch.commit();
+      return n;
     }
-  }
-  cancelAnimationFrame(K.raf);
-  if (isSync) K.raf = requestAnimationFrame(tick);
-}
-
-export function closeKaraoke() {
-  const el = $('#karaoke');
-  if (el.hidden) return;
-  cancelAnimationFrame(K.raf);
-  try { K.player?.destroy?.(); } catch { /* egal */ }
-  K.player = null; K.playing = false;
-  wake(false);
-  el.hidden = true;
-  document.documentElement.classList.remove('k-open');
-}
-
-export function bindKaraoke() {
-  const el = $('#karaoke');
-  el.addEventListener('click', e => {
-    if (e.target.closest('#k-close')) return closeKaraoke();
-    if (e.target.closest('#k-play')) return setPlaying(!K.playing);
-    if (e.target.closest('[data-k-shift]')) {
-      K.offset += Number(e.target.closest('[data-k-shift]').dataset.kShift);
-      K.idx = -2;
-      $('#k-offset').textContent = (K.offset > 0 ? '+' : '') + K.offset.toFixed(1) + ' s';
-      return;
-    }
-    if (e.target.closest('[data-k-size]')) {
-      K.size = Math.min(1.8, Math.max(0.7, K.size + Number(e.target.closest('[data-k-size]').dataset.kSize)));
-      try { localStorage.setItem('glasklang-k-size', K.size); } catch { /* egal */ }
-      return applySize();
-    }
-    const line = e.target.closest('[data-k-seek]');
-    if (line) { seek(Number(line.dataset.kSeek)); if (!K.playing) setPlaying(true); }
-  });
-  $('#k-seek').addEventListener('input', e => seek(Number(e.target.value) / 10));
-  document.addEventListener('keydown', e => {
-    if (el.hidden) return;
-    if (e.key === 'Escape') closeKaraoke();
-    else if (e.code === 'Space' && el.classList.contains('is-sync') && !e.target.closest('input, button')) { e.preventDefault(); setPlaying(!K.playing); }
-  });
+  };
 }
