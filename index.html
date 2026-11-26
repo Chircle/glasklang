@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Glasklang</title>
+  <meta name="description" content="Glasklang – Repertoire & vocal technique · Repertoire & Gesangstechnik">
+  <meta name="theme-color" content="#e8eafb">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Figtree:ital,wght@0,300..800;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/glasklang.css">
+  <script>
+    // Design vor dem ersten Zeichnen setzen (kein Aufblitzen)
+    try { var th = localStorage.getItem('glasklang-theme'); document.documentElement.dataset.theme = th || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <span class="blob blob--a" data-depth="0.25"></span>
+    <span class="blob blob--b" data-depth="0.4"></span>
+    <span class="blob blob--c" data-depth="0.15"></span>
+    <span class="blob blob--d" data-depth="0.35"></span>
+    <span class="sphere sphere--1" data-depth="0.6"></span>
+    <span class="sphere sphere--2" data-depth="0.3"></span>
+    <span class="sphere sphere--3" data-depth="0.8"></span>
+  </div>
+
+  <!-- Vorlage: Sprache + Hell/Dunkel (wird in Gate und Topbar eingesetzt) -->
+  <template id="tpl-controls">
+    <div class="controls">
+      <div class="lang-pick">
+        <button type="button" class="lang-btn" data-lang-toggle aria-haspopup="listbox" aria-expanded="false" data-i18n-attr="aria-label:lang.choose; title:lang.choose">
+          <svg class="ico ico--sm" aria-hidden="true"><use href="#i-globe"/></svg><span data-lang-code>DE</span>
+        </button>
+        <ul class="lang-menu glass" role="listbox" hidden data-lang-menu></ul>
+      </div>
+      <button type="button" class="switch" role="switch" aria-checked="false" data-theme-switch data-i18n-attr="aria-label:theme.switch; title:theme.switch">
+        <span class="switch-track" aria-hidden="true">
+          <svg class="ico switch-sun"><use href="#i-sun"/></svg>
+          <svg class="ico switch-moon"><use href="#i-moon"/></svg>
+          <span class="switch-thumb"></span>
+        </span>
+      </button>
+    </div>
+  </template>
+
+  <!-- ============ Login ============ -->
+  <section class="gate" id="gate" hidden>
+    <div class="gate-controls" data-controls></div>
+    <div class="gate-word" aria-hidden="true">GLASKLANG</div>
+    <div class="orb orb--gate" data-orb aria-hidden="true"><span class="orb-core"></span><span class="orb-swirl"></span><span class="orb-shine"></span></div>
+    <div class="glass gate-card">
+      <div class="brand brand--lg"><span class="brand-dot" aria-hidden="true"></span>Glasklang</div>
+      <p class="gate-lead" id="gate-lead" data-i18n="gate.lead"></p>
+      <button type="button" class="btn btn--primary btn--lg" id="btn-signin">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21.6 12.23c0-.68-.06-1.36-.18-2.02H12v3.83h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.23c1.9-1.75 2.99-4.33 2.99-7.33Z"/><path fill="currentColor" opacity=".85" d="M12 22c2.7 0 4.97-.9 6.62-2.43l-3.23-2.5c-.9.6-2.04.96-3.39.96-2.6 0-4.81-1.76-5.6-4.12H3.07v2.58A10 10 0 0 0 12 22Z"/><path fill="currentColor" opacity=".7" d="M6.4 13.9a6 6 0 0 1 0-3.8V7.52H3.07a10 10 0 0 0 0 8.96L6.4 13.9Z"/><path fill="currentColor" opacity=".9" d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.86-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.52L6.4 10.1C7.19 7.74 9.4 5.98 12 5.98Z"/></svg>
+        <span data-i18n="gate.signin"></span>
+      </button>
+      <button type="button" class="btn btn--ghost" id="btn-gate-signout" hidden data-i18n="gate.switchAccount"></button>
+      <p class="gate-fine" data-i18n="gate.fine"></p>
+    </div>
+  </section>
+
+  <!-- ============ App ============ -->
+  <div class="app" id="app" hidden>
+    <header class="topbar glass">
+      <a class="brand" href="#/katalog"><span class="brand-dot" aria-hidden="true"></span>Glasklang</a>
+      <label class="search pill-field">
+        <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+        <span class="sr-only" data-i18n="search.label"></span>
+        <input type="search" id="search-input" autocomplete="off" data-i18n-attr="placeholder:search.placeholder">
+      </label>
+      <div class="topbar-end">
+        <span class="sync" id="sync-label" aria-live="polite"></span>
+        <div data-controls></div>
+        <button type="button" class="user-chip" id="user-chip" aria-haspopup="true" aria-expanded="false">
+          <span class="avatar" id="user-avatar"></span>
+          <span class="user-name" id="user-name"></span>
+          <svg class="ico ico--sm" aria-hidden="true"><use href="#i-chevron"/></svg>
+        </button>
+        <div class="menu glass" id="user-menu" hidden>
+          <div class="menu-mail" id="user-mail"></div>
+          <button type="button" class="menu-item" data-action="members" data-owner-only hidden><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span data-i18n="menu.members"></span></button>
+          <button type="button" class="menu-item" data-action="signout"><svg class="ico" aria-hidden="true"><use href="#i-logout"/></svg><span data-i18n="menu.signout"></span></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="demo-banner glass" id="demo-banner" hidden><strong data-i18n="demo.title"></strong> · <span data-i18n="demo.text"></span></div>
+
+    <main class="page">
+      <!-- ================= Datenbank ================= -->
+      <section class="view" data-view="katalog">
+        <header class="view-head">
+          <div>
+            <span class="eyebrow" data-i18n="view.katalog"></span>
+            <h1 class="view-title"><span data-i18n="katalog.title"></span> <span class="count" id="list-count">0</span></h1>
+            <span class="muted" id="filter-note"></span>
+          </div>
+          <div class="kpis">
+            <div class="kpi glass"><span class="kpi-num" id="kpi-total">0</span><span class="kpi-lbl" id="kpi-total-l"></span></div>
+            <div class="kpi glass"><span class="kpi-num" id="kpi-cats">0</span><span class="kpi-lbl" id="kpi-cats-l"></span></div>
+            <div class="kpi glass"><span class="kpi-num" id="kpi-favs">0</span><span class="kpi-lbl" data-i18n="kpi.plan"></span></div>
+            <div class="kpi glass"><span class="kpi-num" id="kpi-done">0</span><span class="kpi-lbl" data-i18n="kpi.done"></span></div>
+          </div>
+        </header>
+
+        <section class="glass tile seed-tile" id="seed-tile" hidden>
+          <div>
+            <h2 class="tile-title" data-i18n="seed.title"></h2>
+            <p class="muted" data-i18n="seed.text"></p>
+          </div>
+          <button type="button" class="btn btn--primary" id="btn-seed" data-i18n="seed.button"></button>
+        </section>
+
+        <section class="glass filterbar" data-i18n-attr="aria-label:filter.label">
+          <div class="filter-row">
+            <label class="pill-select"><span data-i18n="filter.category"></span><select id="f-cat"></select></label>
+            <label class="pill-select"><span data-i18n="filter.mood"></span><select id="f-mood" data-enum="mood"></select></label>
+            <label class="pill-select"><span data-i18n="filter.difficulty"></span><select id="f-diff" data-enum="difficulty"></select></label>
+            <label class="pill-select"><span data-i18n="filter.register"></span><select id="f-reg" data-enum="register"></select></label>
+            <label class="pill-select"><span data-i18n="filter.version"></span><select id="f-lang"></select></label>
+            <label class="pill-select"><span data-i18n="filter.sort"></span><select id="f-sort">
+              <option value="order" data-i18n="sort.category"></option><option value="title" data-i18n="sort.title"></option>
+              <option value="diff" data-i18n="sort.difficulty"></option><option value="bpm" data-i18n="sort.tempo"></option></select></label>
+            <div class="filter-end">
+              <button type="button" class="chip" id="f-fav" aria-pressed="false"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="filter.plan"></span></button>
+              <div class="seg-icons" role="group" data-i18n-attr="aria-label:layout.label">
+                <button type="button" class="seg-btn is-on" data-layout="grid" data-i18n-attr="aria-label:layout.grid"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-grid"/></svg></button>
+                <button type="button" class="seg-btn" data-layout="list" data-i18n-attr="aria-label:layout.list"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-rows"/></svg></button>
+              </div>
+              <button type="button" class="btn btn--ghost btn--sm" id="f-reset" data-i18n="filter.reset"></button>
+            </div>
+          </div>
+          <div class="chips" id="tech-chips"></div>
+        </section>
+
+        <section class="explorer">
+          <div class="cards" id="cards" data-layout="grid"></div>
+          <aside class="inspector" id="inspector" data-i18n-attr="aria-label:sheet.label">
+            <div class="inspector-inner glass-deep" id="inspector-inner"></div>
+          </aside>
+        </section>
+      </section>
+
+      <!-- ================= Technik ================= -->
+      <section class="view" data-view="technik" hidden>
+        <header class="view-head">
+          <div>
+            <span class="eyebrow" data-i18n="view.technik"></span>
+            <h1 class="view-title" data-i18n="technik.title"></h1>
+          </div>
+        </header>
+        <section class="duo">
+          <article class="glass tile tile--tall">
+            <header class="tile-head">
+              <span class="eyebrow" data-i18n="technik.constellation"></span>
+              <span class="hint" data-i18n="technik.hint"></span>
+            </header>
+            <div class="bubbles" id="bubbles"></div>
+          </article>
+          <article class="glass tile tile--quote">
+            <header class="tile-head"><span class="eyebrow" data-i18n="technik.compendium"></span></header>
+            <span class="quote-mark" aria-hidden="true">“</span>
+            <div class="segmented" role="tablist" id="comp-tabs"></div>
+            <div class="comp-body" id="comp-body" role="tabpanel"></div>
+          </article>
+        </section>
+      </section>
+
+      <!-- ================= Metronom ================= -->
+      <section class="view metro" data-view="metronom" hidden>
+        <div class="metro-stage glass">
+          <div class="metro-word" id="m-word" aria-hidden="true">96</div>
+          <div class="orb orb--metro" id="m-orb" role="button" tabindex="0" data-i18n-attr="aria-label:metro.orb">
+            <span class="orb-core"></span><span class="orb-swirl"></span><span class="orb-shine"></span>
+          </div>
+          <div class="beat-dots" id="m-dots" aria-hidden="true"></div>
+          <p class="metro-hint" id="m-hint"></p>
+        </div>
+
+        <div class="metro-panel glass-deep">
+          <div class="metro-tempo">
+            <div>
+              <div class="metro-bpm"><span id="m-bpm">96</span><small>BPM</small></div>
+              <div class="metro-name" id="m-name"></div>
+            </div>
+            <button type="button" class="btn" id="m-tap" data-i18n="metro.tap"></button>
+          </div>
+          <div class="metro-slider">
+            <button type="button" class="icon-btn" data-bpm-step="-1" data-i18n-attr="aria-label:metro.slower">−</button>
+            <input type="range" id="m-range" min="30" max="260" value="96" data-i18n-attr="aria-label:metro.tempo">
+            <button type="button" class="icon-btn" data-bpm-step="1" data-i18n-attr="aria-label:metro.faster">+</button>
+          </div>
+          <div class="metro-field">
+            <span class="lbl" data-i18n="metro.meter"></span>
+            <div class="segmented" id="m-meter" role="radiogroup" data-i18n-attr="aria-label:metro.meter">
+              <button type="button" class="seg" data-meter="2">2/4</button><button type="button" class="seg" data-meter="3">3/4</button>
+              <button type="button" class="seg" data-meter="4">4/4</button><button type="button" class="seg" data-meter="5">5/4</button>
+              <button type="button" class="seg" data-meter="6">6/8</button><button type="button" class="seg" data-meter="12">12/8</button>
+            </div>
+          </div>
+          <div class="metro-field">
+            <span class="lbl" data-i18n="metro.sound"></span>
+            <div class="segmented" id="m-sound" role="radiogroup" data-i18n-attr="aria-label:metro.sound">
+              <button type="button" class="seg" data-sound="glas" data-i18n="metro.sound.glas"></button>
+              <button type="button" class="seg" data-sound="holz" data-i18n="metro.sound.holz"></button>
+              <button type="button" class="seg" data-sound="klick" data-i18n="metro.sound.klick"></button>
+              <button type="button" class="seg" data-sound="stumm" data-i18n="metro.sound.stumm"></button>
+            </div>
+          </div>
+          <div class="metro-row">
+            <label class="metro-field grow"><span class="lbl" data-i18n="metro.volume"></span><input type="range" id="m-vol" min="0" max="100" value="70"></label>
+            <button type="button" class="chip" id="m-accent" aria-pressed="true" data-i18n="metro.accent"></button>
+          </div>
+          <label class="metro-field"><span class="lbl" data-i18n="metro.fromSong"></span>
+            <span class="pill-select pill-select--full"><span data-i18n="metro.song"></span><select id="m-song"></select></span>
+          </label>
+          <button type="button" class="btn btn--primary btn--lg metro-go" id="m-go"></button>
+        </div>
+      </section>
+
+      <footer class="foot muted"><span data-i18n="foot.sources"></span>: Aretha-Franklin-Repertoireplanung · Sing It To The World · Lexi Pinnata · Singing Carrots · K Music Studios · You Can Sing 2 · Musiker-Board</footer>
+    </main>
+
+    <nav class="dock glass" id="dock" data-i18n-attr="aria-label:dock.label">
+      <a class="dock-item" href="#/katalog" data-go="katalog"><svg class="ico" aria-hidden="true"><use href="#i-music"/></svg><span data-i18n="view.katalog"></span></a>
+      <a class="dock-item" href="#/technik" data-go="technik"><svg class="ico" aria-hidden="true"><use href="#i-orbit"/></svg><span data-i18n="view.technik"></span></a>
+      <a class="dock-item dock-metro" href="#/metronom" data-go="metronom"><svg class="ico" aria-hidden="true"><use href="#i-metro"/></svg><span data-i18n="view.metronom"></span><i class="dock-pulse" aria-hidden="true"></i></a>
+      <button type="button" class="dock-item" data-action="plan"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="dock.plan"></span></button>
+      <button type="button" class="dock-item" data-action="members" data-owner-only hidden><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg><span data-i18n="dock.team"></span></button>
+    </nav>
+  </div>
+
+  <!-- Mitglieder -->
+  <dialog class="sheet glass-deep" id="members-dialog" aria-labelledby="members-title">
+    <form method="dialog" class="sheet-head">
+      <h2 id="members-title" class="tile-title" data-i18n="members.title"></h2>
+      <button class="icon-btn" data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </form>
+    <p class="muted" data-i18n="members.text"></p>
+    <form class="member-add" id="member-form">
+      <label class="pill-field grow"><span class="sr-only" data-i18n="members.email"></span><input type="email" id="member-email" placeholder="name@gmail.com" required></label>
+      <button class="btn btn--primary" type="submit" data-i18n="members.add"></button>
+    </form>
+    <ul class="member-list" id="member-list"></ul>
+  </dialog>
+
+  <!-- Fassung bearbeiten (nur Besitzer:in) -->
+  <dialog class="sheet sheet--wide glass-deep" id="version-dialog" aria-labelledby="version-title">
+    <form method="dialog" class="sheet-head">
+      <h2 id="version-title" class="tile-title" data-i18n="edit.title"></h2>
+      <button class="icon-btn" data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </form>
+    <form class="edit-form" id="version-form">
+      <div class="edit-grid">
+        <label class="field"><span class="lbl" data-i18n="edit.lang"></span><span class="pill-select pill-select--full"><span><svg class="ico ico--sm" aria-hidden="true"><use href="#i-globe"/></svg></span><select id="v-lang"></select></span></label>
+        <label class="field"><span class="lbl" data-i18n="edit.songTitle"></span><span class="pill-field"><input id="v-title" required></span></label>
+        <label class="field"><span class="lbl" data-i18n="edit.performer"></span><span class="pill-field"><input id="v-performer"></span></label>
+        <label class="field"><span class="lbl" data-i18n="edit.video"></span><span class="pill-field"><input id="v-video" type="url" placeholder="https://www.youtube.com/watch?v=…"></span></label>
+      </div>
+      <label class="field"><span class="lbl" data-i18n="edit.lyrics"></span>
+        <textarea id="v-lyrics" class="notes notes--tall" data-i18n-attr="placeholder:edit.lyricsHint"></textarea></label>
+      <div class="edit-actions">
+        <button type="button" class="btn btn--ghost btn--danger" id="v-delete" data-i18n="edit.delete"></button>
+        <span class="grow"></span>
+        <button type="button" class="btn btn--ghost" id="v-cancel" data-i18n="common.cancel"></button>
+        <button type="submit" class="btn btn--primary" data-i18n="common.save"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast glass" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="print-sheet" id="print-sheet"></div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.9l-5.3 2.7 1-5.8-4.2-4.1 5.9-.9z"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+      <symbol id="i-rows" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="5.5" rx="1.5"/><rect x="4" y="13.5" width="16" height="5.5" rx="1.5"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c2 .7 3.2 2.5 3.5 5.2"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h10"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+      <symbol id="i-printer" viewBox="0 0 24 24"><path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6.5H7z"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3c.6 4.6 3.4 7.4 8 8-4.6.6-7.4 3.4-8 8-.6-4.6-3.4-7.4-8-8 4.6-.6 7.4-3.4 8-8Z"/></symbol>
+      <symbol id="i-orbit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4.5" transform="rotate(-25 12 12)"/><circle cx="20" cy="8" r="1.2"/></symbol>
+      <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+      <symbol id="i-metro" viewBox="0 0 24 24"><path d="M9.2 3.5h5.6L19 20.5H5z"/><path d="M12 15.5 16.5 6"/><path d="M8 17h8"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.5 4 5.6 4 9s-1.4 6.5-4 9c-2.6-2.5-4-5.6-4-9s1.4-6.5 4-9Z"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+    </defs>
+  </svg>
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
