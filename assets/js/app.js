@@ -8,6 +8,7 @@ import { openKaraoke, closeKaraoke, bindKaraoke } from './karaoke.js';
 import { artistKey, avatarHTML, processImage } from './avatars.js';
 import { youtubeEnabled, searchVideos } from './youtube.js';
 import { coachSchema, buildPrompt, validatePlan, rulePlan } from './coach.js';
+import { searchRecordings } from './musicbrainz.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -29,7 +30,8 @@ const METRO_DEFAULT = { bpm: 96, meter: 4, sound: 'glas', volume: 0.7, accent: t
 const mobile = matchMedia('(max-width: 900px)');
 const coarse = matchMedia('(pointer: coarse)');
 const haptic = (ms = 8) => { try { if (coarse.matches) navigator.vibrate?.(ms); } catch { /* egal */ } };
-const tEnum = (group, id) => t(`enum.${group}.${id}`);
+const tEnum = (group, id) => (id ? t(`enum.${group}.${id}`) : '–');
+const bpmTxt = s => (s.bpm ? fmtNum(s.bpm) : '–');
 
 const S = {
   store: null, user: null, artists: {},
@@ -162,6 +164,11 @@ async function enterApp() {
   route();
   countUp($('#kpi-total'), S.songs.length);
   countUp($('#kpi-cats'), S.cats.length);
+}
+function refreshCatalogCounts() {
+  $('#kpi-total').textContent = fmtNum(S.songs.length);
+  $('#kpi-cats').textContent = fmtNum(S.cats.length);
+  $('#seed-tile').hidden = !(!S.store.demo && S.songs.length === 0);
 }
 
 function renderAll() {
@@ -318,7 +325,7 @@ function renderCards() {
       <div class="card-facts">
         <div><div class="fact-l">${esc(t('meta.key'))}</div><div class="fact-v">${esc(dash(keyName(s.key)))}</div></div>
         <div><div class="fact-l">${esc(t('meta.range'))}</div><div class="fact-v">${esc(dash(s.range))}</div></div>
-        <div><div class="fact-l">${esc(t('meta.tempo'))}</div><div class="fact-v">${esc(fmtNum(s.bpm))} BPM</div></div>
+        <div><div class="fact-l">${esc(t('meta.tempo'))}</div><div class="fact-v">${esc(bpmTxt(s))} BPM</div></div>
       </div>
       <div class="card-foot">
         <div class="badges">${s.techniques.slice(0, 3).map(id => `<span class="badge">${esc(tEnum('techniques', id))}</span>`).join('')}${s.techniques.length > 3 ? `<span class="badge">+${s.techniques.length - 3}</span>` : ''}</div>
@@ -506,15 +513,16 @@ function renderInspector() {
     <div class="meta">
       <div><span class="meta-v">${esc(dash(keyName(s.key)))}</span><span class="meta-l">${esc(t('meta.key'))}</span></div>
       <div><span class="meta-v">${esc(dash(s.range))}</span><span class="meta-l">${esc(t('meta.range'))}</span></div>
-      <div><span class="meta-v">${esc(fmtNum(s.bpm))}</span><span class="meta-l">BPM</span></div>
+      <div><span class="meta-v">${esc(bpmTxt(s))}</span><span class="meta-l">BPM</span></div>
       <div><span class="meta-v">${esc(tEnum('register', s.register))}</span><span class="meta-l">${esc(t('meta.register'))}</span></div>
     </div>
-    ${s.review ? `<p class="review-note">${esc(t('meta.review'))}</p>` : ''}
+    ${s.review ? `<p class="review-note">${esc(t('meta.review'))} <button type="button" class="link-btn" data-song-edit>${esc(t('song.complete'))}</button></p>` : ''}
 
     <div class="row-actions">
       <button type="button" class="btn btn--sm ${fav ? 'btn--primary' : ''}" data-fav="${esc(s.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-star"/></svg>${esc(t(fav ? 'action.inPlan' : 'action.plan'))}</button>
       <button type="button" class="btn btn--sm ${done ? 'btn--primary' : ''}" data-done="${esc(s.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-check"/></svg>${esc(t(done ? 'action.isDone' : 'action.done'))}</button>
-      <button type="button" class="btn btn--sm btn--ghost" data-metro="${esc(s.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-metro"/></svg>${esc(fmtNum(s.bpm))} BPM</button>
+      <button type="button" class="btn btn--sm btn--ghost" data-metro="${esc(s.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-metro"/></svg>${esc(bpmTxt(s))} BPM</button>
+      <button type="button" class="btn btn--sm btn--ghost" data-song-edit><svg class="ico ico--sm" aria-hidden="true"><use href="#i-edit"/></svg>${esc(t('song.edit'))}</button>
       <button type="button" class="btn btn--sm btn--ghost" data-print><svg class="ico ico--sm" aria-hidden="true"><use href="#i-printer"/></svg>${esc(t('action.print'))}</button>
       <button type="button" class="btn btn--sm btn--ghost" data-txt><svg class="ico ico--sm" aria-hidden="true"><use href="#i-file"/></svg>TXT</button>
     </div>
@@ -833,7 +841,7 @@ function renderPrint(s) {
   $('#print-sheet').innerHTML = `
     <h1>${esc(v.title)}</h1>
     <div><strong>${esc(v.performer || L(s.artist))}</strong> · ${esc(catLabel(s.category))} · ${esc(autonym(v.lang))}</div>
-    <div class="p-meta">${esc(t('meta.key'))}: ${esc(dash(keyName(s.key)))} | ${esc(t('meta.range'))}: ${esc(dash(s.range))} | ${esc(t('meta.tempo'))}: ${esc(s.bpm)} BPM | ${esc(t('filter.difficulty'))}: ${esc(tEnum('difficulty', s.difficulty))} | ${esc(t('meta.register'))}: ${esc(tEnum('register', s.register))} | ${esc(s.techniques.map(id => tEnum('techniques', id)).join(', '))}</div>
+    <div class="p-meta">${esc(t('meta.key'))}: ${esc(dash(keyName(s.key)))} | ${esc(t('meta.range'))}: ${esc(dash(s.range))} | ${esc(t('meta.tempo'))}: ${esc(bpmTxt(s))} BPM | ${esc(t('filter.difficulty'))}: ${esc(tEnum('difficulty', s.difficulty))} | ${esc(t('meta.register'))}: ${esc(tEnum('register', s.register))} | ${esc(s.techniques.map(id => tEnum('techniques', id)).join(', '))}</div>
     <p><strong>${esc(t('sheet.coaching'))}:</strong> ${esc(L(s.tip))}</p>
     ${s.sections.map(x => `<div class="p-sec"><div class="p-sec-t">${esc(sectionLabel(x))}</div><div class="p-sec-c">${esc(L(x.cue))}</div></div>`).join('')}
     ${v.lyrics ? `<div class="p-lyrics">${lyricsBlock(v.lyrics)}</div>` : ''}
@@ -843,7 +851,7 @@ function exportTxt(s) {
   const v = currentVersion(s);
   const lines = [
     `${v.title} — ${v.performer || L(s.artist)} (${autonym(v.lang)})`,
-    `${t('meta.key')}: ${dash(keyName(s.key))} | ${t('meta.range')}: ${dash(s.range)} | ${t('meta.tempo')}: ${s.bpm} BPM | ${t('filter.difficulty')}: ${tEnum('difficulty', s.difficulty)} | ${t('meta.register')}: ${tEnum('register', s.register)}`,
+    `${t('meta.key')}: ${dash(keyName(s.key))} | ${t('meta.range')}: ${dash(s.range)} | ${t('meta.tempo')}: ${bpmTxt(s)} BPM | ${t('filter.difficulty')}: ${tEnum('difficulty', s.difficulty)} | ${t('meta.register')}: ${tEnum('register', s.register)}`,
     `${t('sheet.techniques')}: ${s.techniques.map(id => tEnum('techniques', id)).join(', ')}`,
     `${t('sheet.coaching')}: ${L(s.tip)}`,
     v.video ? `Video: ${v.video}` : '',
@@ -878,6 +886,180 @@ function route() {
   if (view === 'technik') requestAnimationFrame(renderBubbles);
   if (view === 'plan') renderPlan();
   if (changed) window.scrollTo({ top: 0 });
+}
+
+/* ------------------------------------------- Song hinzufügen/bearbeiten */
+const KEYS = [...['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'].map(tonic => ({ tonic, mode: 'major' })),
+  ...['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'].map(tonic => ({ tonic, mode: 'minor' }))];
+const SD = { id: null, techs: new Set(), armed: false, performer: '', q2: '' };
+const slug = x => String(x || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+
+function openSongEditor(id = null) {
+  const s = id ? song(id) : null;
+  SD.id = s?.id || null; SD.armed = false; SD.performer = ''; SD.q2 = '';
+  SD.techs = new Set(s?.techniques || []);
+  const isNew = !s;
+  $('#song-title').textContent = t(isNew ? 'song.addTitle' : 'song.editTitle');
+  $('#sd-sub').textContent = isNew ? t('song.addLead') : `${mainTitle(s)} · ${L(s.artist)}`;
+  $('#sd-find').hidden = !isNew;
+  $('#sd-new-fields').hidden = !isNew;
+  $('#sd-video-wrap').hidden = !isNew;
+  $('#sd-delete').hidden = isNew;
+  $('#sd-delete').textContent = t('song.delete');
+  $('#sd-error').textContent = '';
+  $('#sd-status').textContent = ''; $('#sd-results').innerHTML = '';
+  $('#sd-q').value = '';
+  $('#sd-lang').innerHTML = EDIT_LANGS.map(l => `<option value="${l}">${esc(langName(l))}</option>`).join('');
+  $('#sd-lang').value = getLang();
+  $('#sd-cat').innerHTML = S.cats.map(c => `<option value="${esc(c.id)}">${esc(L(c.label))}</option>`).join('') + `<option value="__new">${esc(t('song.newCategoryOption'))}</option>`;
+  const sel = (q, g, v) => { $(q).innerHTML = ENUMS[g].map(x => `<option value="${x}">${esc(tEnum(g, x))}</option>`).join(''); $(q).value = v; };
+  sel('#sd-diff', 'difficulty', s?.difficulty || 'intermediate');
+  sel('#sd-reg', 'register', s?.register || 'mix');
+  sel('#sd-mood', 'mood', s?.mood || 'emotional');
+  $('#sd-key').innerHTML = `<option value="">${esc(t('song.keyUnknown'))}</option>` + KEYS.map(k => `<option value="${k.tonic}:${k.mode}">${esc(keyName(k))}</option>`).join('');
+  const k0 = Array.isArray(s?.key) ? s.key[0] : s?.key;
+  $('#sd-key').value = k0 ? `${k0.tonic}:${k0.mode}` : '';
+  $('#sd-title').value = '';
+  $('#sd-artist').value = s ? L(s.artist) : '';
+  $('#sd-cat').value = s?.category || (S.f.cat !== 'ALL' ? S.f.cat : S.cats[0]?.id || '__new');
+  $('#sd-newcat').value = '';
+  $('#sd-newcat-wrap').hidden = $('#sd-cat').value !== '__new';
+  $('#sd-video').value = '';
+  $('#sd-range').value = s?.range || '';
+  $('#sd-bpm').value = s?.bpm || '';
+  $('#sd-tip').value = s ? L(s.tip) : '';
+  $('#sd-artists').innerHTML = [...new Set(S.songs.map(x => L(x.artist)))].sort(compare).map(a => `<option value="${esc(a)}">`).join('');
+  renderSdTechs();
+  $('#song-dialog').showModal();
+  if (isNew && !coarse.matches) $('#sd-q').focus();
+}
+function renderSdTechs() {
+  $('#sd-techs').innerHTML = ENUMS.techniques.map(id => `<button type="button" class="chip ${SD.techs.has(id) ? 'is-on' : ''}" data-sd-tech="${id}" aria-pressed="${SD.techs.has(id)}"><span class="dot" style="--c:${TECH_COLORS[id]}"></span>${esc(tEnum('techniques', id))}</button>`).join('');
+}
+let sdHits = [];
+async function runSongSearch() {
+  const q = $('#sd-q').value.trim();
+  if (!q) return;
+  $('#sd-status').textContent = t('song.searching'); $('#sd-results').innerHTML = '';
+  const parts = q.split(/\s+[-–—/]\s+/);
+  SD.q2 = parts.length === 2 ? parts[1].trim() : '';
+  try {
+    sdHits = await searchRecordings(q);
+    $('#sd-status').textContent = sdHits.length ? t('song.pickHit') : t('song.noHits');
+    $('#sd-results').innerHTML = sdHits.map((h, i) => {
+      const dup = S.songs.find(x => slug(mainTitle(x)) === slug(h.title) && slug(L(x.artist)) === slug(h.artist));
+      return `<li><button type="button" class="ly-hit" data-sd-hit="${i}">
+        <span class="ly-hit-main"><b>${esc(h.title)}</b><span>${esc(h.artist)}${h.album ? ` · ${esc(h.album)}` : ''}</span></span>
+        <span class="sd-hit-meta">${esc([h.year, h.length ? fmtDuration(h.length / 1000) : ''].filter(Boolean).join(' · '))}${dup ? ` · <span class="badge badge--coral">${esc(t('song.exists'))}</span>` : ''}</span>
+      </button></li>`;
+    }).join('');
+  } catch (e) {
+    $('#sd-status').textContent = t(e.message === 'busy' ? 'song.busy' : 'song.searchFailed');
+  }
+}
+function pickSongHit(i) {
+  const h = sdHits[i]; if (!h) return;
+  $('#sd-title').value = h.title;
+  // Musical-Aufnahme? („Burn – Hamilton“ → Treffer von Phillipa Soo auf dem Hamilton-Album)
+  const q2 = SD.q2.toLowerCase();
+  const isCast = q2 && !h.artist.toLowerCase().includes(q2) && (h.album || '').toLowerCase().includes(q2);
+  const artist = isCast ? SD.q2 : h.artist;
+  SD.performer = isCast ? h.artist : '';
+  $('#sd-artist').value = artist;
+  // Kategorie raten: gleicher Interpret im Katalog oder gleichnamige Kategorie
+  const same = S.songs.find(x => slug(L(x.artist)) === slug(artist));
+  const cat = same ? same.category : S.cats.find(c => slug(L(c.label)) === slug(artist))?.id;
+  if (cat) { $('#sd-cat').value = cat; $('#sd-newcat-wrap').hidden = true; }
+  else { $('#sd-cat').value = '__new'; $('#sd-newcat').value = artist; $('#sd-newcat-wrap').hidden = false; }
+  $$('#sd-results .ly-hit').forEach((b, j) => b.classList.toggle('is-on', j === i));
+  $('#sd-title').scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+}
+async function saveSong() {
+  const err = (m, field) => { $('#sd-error').textContent = t(m); if (field) { const f = $(field); f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); } };
+  const isNew = !SD.id;
+  const title = $('#sd-title').value.trim();
+  const artist = $('#sd-artist').value.trim();
+  if (isNew && !title) return err('song.needTitle', '#sd-title');
+  if (!artist) return err('song.needArtist', '#sd-artist');
+  let category = $('#sd-cat').value;
+  let cats = S.cats;
+  if (category === '__new') {
+    const label = $('#sd-newcat').value.trim();
+    if (!label) return err('song.needCategory', '#sd-newcat');
+    const existing = S.cats.find(c => slug(L(c.label)) === slug(label));
+    if (existing) category = existing.id;
+    else {
+      let cid = slug(label) || 'kategorie'; let n = 2;
+      while (S.cats.some(c => c.id === cid)) cid = `${slug(label)}-${n++}`;
+      cats = [...S.cats, { id: cid, label, order: Math.max(-1, ...S.cats.map(c => c.order ?? 0)) + 1 }];
+      category = cid;
+    }
+  }
+  const kv = $('#sd-key').value;
+  const bpm = parseInt($('#sd-bpm').value, 10);
+  const tipTxt = $('#sd-tip').value.trim();
+  const prev = isNew ? null : song(SD.id);
+  const base = {
+    category,
+    artist: prev && typeof prev.artist === 'object' && L(prev.artist) === artist ? prev.artist : artist,
+    key: kv ? [{ tonic: kv.split(':')[0], mode: kv.split(':')[1] }] : null,
+    range: $('#sd-range').value.trim() || null,
+    bpm: Number.isFinite(bpm) && bpm >= 30 && bpm <= 260 ? bpm : null,
+    difficulty: $('#sd-diff').value, register: $('#sd-reg').value, mood: $('#sd-mood').value,
+    techniques: ENUMS.techniques.filter(x => SD.techs.has(x)),
+    tip: tipTxt ? (prev?.tip && typeof prev.tip === 'object' && L(prev.tip) === tipTxt ? prev.tip : { [getLang()]: tipTxt }) : null
+  };
+  base.review = !(base.key && base.range && base.bpm);
+  const btn = $('#sd-save'); btn.disabled = true;
+  try {
+    if (cats !== S.cats) { await S.store.saveCategories(cats); S.cats = cats; }
+    let id = SD.id;
+    if (isNew) {
+      id = `u-${slug(title).slice(0, 24) || 'song'}-${Date.now().toString(36).slice(-4)}`;
+      const lang = $('#sd-lang').value;
+      const data = {
+        schema: 2, id, order: Math.max(0, ...S.songs.map(x => x.order || 0)) + 1, ...base,
+        coachingQuery: `${artist} ${title} vocal`, sections: [],
+        versions: [{ id: lang, lang, title, performer: SD.performer || artist, lyrics: '', video: $('#sd-video').value.trim() }]
+      };
+      await S.store.addSong(data);
+      S.songs.push({ ...data, techniques: data.techniques, sections: [], versions: data.versions });
+    } else {
+      await S.store.updateSong(id, base);
+      Object.assign(song(id), base);
+    }
+    $('#song-dialog').close();
+    toast(t(isNew ? 'song.added' : 'toast.saved'));
+    fillSelects(); renderChips(); refreshCatalogCounts();
+    if (isNew) {
+      S.f.q = ''; $('#search-input').value = '';
+      if (S.f.cat !== 'ALL' && S.f.cat !== category) S.f.cat = 'ALL';
+      if (S.f.fav) S.f.fav = false;
+    }
+    apply();
+    select(id);
+    if (S.view === 'plan') renderPlan();
+  } catch (e) {
+    console.error(e);
+    err(e.message === 'storage-full' ? 'toast.storageFull' : 'toast.saveFailed');
+  } finally { btn.disabled = false; }
+}
+async function deleteSong() {
+  const b = $('#sd-delete');
+  if (!SD.armed) { SD.armed = true; b.textContent = t('edit.confirmDelete'); return; }
+  const id = SD.id;
+  try {
+    await S.store.deleteSong(id);
+    S.songs = S.songs.filter(x => x.id !== id);
+    ['favorites', 'completed'].forEach(k => { S.u[k] = S.u[k].filter(x => x !== id); });
+    delete S.u.notes[id];
+    save(100);
+    $('#song-dialog').close();
+    closeSheet();
+    S.sel = null;
+    toast(t('song.deleted'));
+    fillSelects(); refreshCatalogCounts(); apply();
+  } catch (e) { console.error(e); toast(t('toast.saveFailed')); }
 }
 
 /* ------------------------------------------------- Plan & KI-Coach */
@@ -1039,7 +1221,7 @@ function metroApply(patch, persist = true) {
 function fillMetroSongs() {
   const cur = $('#m-song').value;
   const fav = S.songs.filter(s => S.u.favorites.includes(s.id));
-  const opt = s => `<option value="${esc(s.id)}">${esc(mainTitle(s))} · ${esc(s.bpm)} BPM</option>`;
+  const opt = s => `<option value="${esc(s.id)}">${esc(mainTitle(s))} · ${esc(bpmTxt(s))} BPM</option>`;
   $('#m-song').innerHTML = `<option value="">${esc(t('metro.ownTempo'))}</option>` +
     (fav.length ? `<optgroup label="${esc(t('filter.plan'))}">${fav.map(opt).join('')}</optgroup>` : '') +
     `<optgroup label="${esc(t('metro.allSongs'))}">${[...S.songs].sort((a, b) => compare(mainTitle(a), mainTitle(b))).map(opt).join('')}</optgroup>`;
@@ -1157,6 +1339,12 @@ function bind() {
     if (e.target.closest('[data-version-add]')) return openVersionEditor(S.sel, null);
     const ve = e.target.closest('[data-version-edit]');
     if (ve) return openVersionEditor(S.sel, ve.dataset.versionEdit);
+    if (e.target.closest('[data-song-add]')) return openSongEditor();
+    if (e.target.closest('[data-song-edit]')) return openSongEditor(S.sel);
+    const sdt = e.target.closest('[data-sd-tech]');
+    if (sdt) { const x = sdt.dataset.sdTech; SD.techs.has(x) ? SD.techs.delete(x) : SD.techs.add(x); return renderSdTechs(); }
+    const sdh = e.target.closest('[data-sd-hit]');
+    if (sdh) return pickSongHit(+sdh.dataset.sdHit);
     const os = e.target.closest('[data-open-song]');
     if (os) return openSong(os.dataset.openSong);
     const ct = e.target.closest('[data-coach-tech]');
@@ -1212,6 +1400,11 @@ function bind() {
   $('#avatar-file').addEventListener('change', e => onAvatarFile(e.target.files?.[0]));
   $('#version-form').addEventListener('submit', e => { e.preventDefault(); saveVersion(false); });
   $('#v-cancel').addEventListener('click', () => $('#version-dialog').close());
+  $('#song-form').addEventListener('submit', e => { e.preventDefault(); saveSong(); });
+  $('#sd-search').addEventListener('submit', e => { e.preventDefault(); runSongSearch(); });
+  $('#sd-cancel').addEventListener('click', () => $('#song-dialog').close());
+  $('#sd-delete').addEventListener('click', deleteSong);
+  $('#sd-cat').addEventListener('change', e => { $('#sd-newcat-wrap').hidden = e.target.value !== '__new'; if (e.target.value === '__new') $('#sd-newcat').focus(); });
   $('#v-delete').addEventListener('click', e => {
     const b = e.currentTarget;
     if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = t('edit.confirmDelete'); return; }

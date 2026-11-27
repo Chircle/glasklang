@@ -23,6 +23,7 @@ function createDemoStore() {
   const KEY = 'glasklang-demo-state';
   const SONGS_KEY = 'glasklang-demo-songs';
   const ART_KEY = 'glasklang-demo-artists';
+  const CATS_KEY = 'glasklang-demo-categories';
   const user = { uid: 'demo', displayName: 'Demo', email: 'demo@glasklang.local', photoURL: '' };
   let seedCache = null;
   const seed = async () => (seedCache ??= await (await fetch('data/seed.json')).json());
@@ -38,8 +39,17 @@ function createDemoStore() {
     async signIn() {},
     async signOut() { location.reload(); },
     async access() { return true; },
-    async songs() { const p = readJSON(SONGS_KEY, {}); return (await seed()).songs.map(s => ({ ...s, ...(p[s.id] || {}) })); },
-    async categories() { return (await seed()).categories || []; },
+    async songs() {
+      const p = readJSON(SONGS_KEY, {});
+      const base = (await seed()).songs;
+      const ids = new Set(base.map(s => s.id));
+      const added = Object.entries(p).filter(([id, x]) => !ids.has(id) && x && x.versions).map(([id, x]) => ({ ...x, id }));
+      return [...base.map(s => ({ ...s, ...(p[s.id] || {}) })), ...added].filter(s => !s._deleted);
+    },
+    async categories() { return readJSON(CATS_KEY, null) || (await seed()).categories || []; },
+    async addSong(song) { const p = readJSON(SONGS_KEY, {}); const { id, ...data } = song; p[id] = data; writeJSON(SONGS_KEY, p); },
+    async deleteSong(id) { const p = readJSON(SONGS_KEY, {}); p[id] = { _deleted: true }; writeJSON(SONGS_KEY, p); },
+    async saveCategories(items) { writeJSON(CATS_KEY, items); },
     async compendium() { return (await seed()).compendium; },
     async updateSong(id, patch) { const p = readJSON(SONGS_KEY, {}); p[id] = { ...(p[id] || {}), ...patch }; writeJSON(SONGS_KEY, p); },
     async artists() { return readJSON(ART_KEY, {}); },
@@ -135,6 +145,9 @@ async function createFirebaseStore() {
       return snap.exists() ? (snap.data().items || []) : [];
     },
     async updateSong(id, patch) { await updateDoc(doc(db, 'songs', id), { ...patch, updatedAt: serverTimestamp() }); },
+    async addSong(song) { const { id, ...data } = song; await setDoc(doc(db, 'songs', id), { ...data, createdAt: serverTimestamp() }); },
+    async deleteSong(id) { await deleteDoc(doc(db, 'songs', id)); },
+    async saveCategories(items) { await setDoc(doc(db, 'meta', 'categories'), { items }, { merge: true }); },
 
     async artists() {
       const snap = await getDocs(collection(db, 'artists'));

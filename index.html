@@ -106,6 +106,7 @@
             <span class="muted" id="filter-note"></span>
           </div>
           <div class="kpis">
+            <button type="button" class="btn btn--primary add-song-btn" data-song-add><svg class="ico ico--sm" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="song.add"></span></button>
             <div class="kpi glass"><span class="kpi-num" id="kpi-total">0</span><span class="kpi-lbl" id="kpi-total-l"></span></div>
             <div class="kpi glass"><span class="kpi-num" id="kpi-cats">0</span><span class="kpi-lbl" id="kpi-cats-l"></span></div>
             <div class="kpi glass"><span class="kpi-num" id="kpi-favs">0</span><span class="kpi-lbl" data-i18n="kpi.plan"></span></div>
@@ -123,6 +124,7 @@
 
         <div class="m-toolbar" id="m-toolbar">
           <div class="search-slot" id="search-slot-mobile"></div>
+          <button type="button" class="icon-btn m-add-btn" data-song-add data-i18n-attr="aria-label:song.add;title:song.add"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
           <button type="button" class="btn m-filter-btn" id="btn-filters" aria-controls="filterbar" aria-expanded="false">
             <svg class="ico ico--sm" aria-hidden="true"><use href="#i-sliders"/></svg><span data-i18n="filter.open"></span><b class="count-dot" id="filter-count" hidden></b>
           </button>
@@ -308,6 +310,59 @@
         <span class="grow"></span>
         <button type="button" class="btn btn--ghost" id="v-cancel" data-i18n="common.cancel"></button>
         <button type="submit" class="btn btn--primary" data-i18n="common.save"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Song hinzufügen / bearbeiten -->
+  <dialog class="sheet sheet--wide glass-deep" id="song-dialog" aria-labelledby="song-title">
+    <form method="dialog" class="sheet-head">
+      <div class="head-txt"><h2 id="song-title" class="tile-title"></h2>
+      <p class="muted ly-for" id="sd-sub"></p></div>
+      <button class="icon-btn" data-i18n-attr="aria-label:common.close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </form>
+
+    <div class="sd-find" id="sd-find">
+      <form class="sd-search" id="sd-search">
+        <span class="pill-field"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><input id="sd-q" type="search" enterkeyhint="search" autocomplete="off" data-i18n-attr="placeholder:song.searchPlaceholder"></span>
+        <button class="btn" type="submit" data-i18n="song.search"></button>
+      </form>
+      <p class="ly-status muted" id="sd-status" aria-live="polite"></p>
+      <ul class="ly-results" id="sd-results"></ul>
+    </div>
+
+    <form class="edit-form" id="song-form" novalidate>
+      <div class="edit-grid" id="sd-new-fields">
+        <label class="field"><span class="lbl" data-i18n="song.title"></span><span class="pill-field"><input id="sd-title" required autocomplete="off"></span></label>
+        <label class="field"><span class="lbl" data-i18n="edit.lang"></span><span class="pill-select pill-select--full"><span><svg class="ico ico--sm" aria-hidden="true"><use href="#i-globe"/></svg></span><select id="sd-lang"></select></span></label>
+      </div>
+      <div class="edit-grid">
+        <label class="field"><span class="lbl" data-i18n="song.artist"></span><span class="pill-field"><input id="sd-artist" required autocomplete="off" list="sd-artists"></span></label>
+        <label class="field"><span class="lbl" data-i18n="song.category"></span><span class="pill-select pill-select--full"><select id="sd-cat"></select></span></label>
+        <label class="field" id="sd-newcat-wrap" hidden><span class="lbl" data-i18n="song.newCategory"></span><span class="pill-field"><input id="sd-newcat" autocomplete="off" data-i18n-attr="placeholder:song.newCategoryPlaceholder"></span></label>
+        <label class="field" id="sd-video-wrap"><span class="lbl" data-i18n="edit.video"></span><span class="pill-field"><input id="sd-video" type="url" data-i18n-attr="placeholder:song.videoHint"></span></label>
+      </div>
+      <datalist id="sd-artists"></datalist>
+
+      <span class="lbl sd-sep" data-i18n="song.vocal"></span>
+      <div class="edit-grid edit-grid--3">
+        <label class="field"><span class="lbl" data-i18n="filter.difficulty"></span><span class="pill-select pill-select--full"><select id="sd-diff"></select></span></label>
+        <label class="field"><span class="lbl" data-i18n="meta.register"></span><span class="pill-select pill-select--full"><select id="sd-reg"></select></span></label>
+        <label class="field"><span class="lbl" data-i18n="filter.mood"></span><span class="pill-select pill-select--full"><select id="sd-mood"></select></span></label>
+        <label class="field"><span class="lbl" data-i18n="meta.key"></span><span class="pill-select pill-select--full"><select id="sd-key"></select></span></label>
+        <label class="field"><span class="lbl" data-i18n="meta.range"></span><span class="pill-field"><input id="sd-range" autocomplete="off" placeholder="A3–E5"></span></label>
+        <label class="field"><span class="lbl">BPM</span><span class="pill-field"><input id="sd-bpm" type="number" inputmode="numeric" min="30" max="260" step="1"></span></label>
+      </div>
+      <div class="field"><span class="lbl" data-i18n="song.techniques"></span><div class="chips sd-techs" id="sd-techs"></div></div>
+      <label class="field"><span class="lbl" data-i18n="song.tip"></span>
+        <textarea id="sd-tip" class="notes" rows="3" data-i18n-attr="placeholder:song.tipHint"></textarea></label>
+
+      <p class="ly-status sd-error" id="sd-error" role="alert"></p>
+      <div class="edit-actions">
+        <button type="button" class="btn btn--ghost btn--danger" id="sd-delete" data-i18n="song.delete"></button>
+        <span class="grow"></span>
+        <button type="button" class="btn btn--ghost" id="sd-cancel" data-i18n="common.cancel"></button>
+        <button type="submit" class="btn btn--primary" id="sd-save" data-i18n="common.save"></button>
       </div>
     </form>
   </dialog>

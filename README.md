@@ -15,6 +15,8 @@ Login mit Google, Daten in Firebase Firestore, gehostet auf GitHub Pages. Es gib
 - Glaskugel-Metronom: 30–260 BPM, Tap-Tempo, Taktarten 2/4 bis 12/8, Betonung, Klänge (Glas, Holz, Klick, stumm) und Lautstärke. Das Tempo lässt sich aus jedem Song übernehmen. Das Metronom läuft weiter, wenn du in die Datenbank wechselst. Tastatur: Leertaste startet und stoppt, ↑/↓ ändern das Tempo (mit Shift in 5er-Schritten), T ist Tap.
 - Unterrichtsblatt pro Song: Coaching-Fokus, Abschnitte mit Technik-Cues, eigener Songtext, Notizen.
 - **Songtext laden** über [LRCLIB](https://lrclib.net) (freie Songtext-Datenbank, oft mit Zeitstempeln). Suchen, Vorschau ansehen, übernehmen. Der Text landet nur in deinem privaten Firestore, nie im Repository.
+- **Songs hinzufügen:** „＋ Song hinzufügen“ (Handy: ＋ neben dem Filter). Titel bei [MusicBrainz](https://musicbrainz.org) suchen und übernehmen oder selbst eintragen. Bei Musicals hilft „Titel – Musical“, z. B. „Burn – Hamilton“. Kategorie wählen oder neu anlegen, Niveau, Register, Tonart, Umfang, BPM, Techniken und Tipp ergänzen. Fehlen Tonart, Umfang oder BPM, bekommt der Song den Hinweis „Angaben ungeprüft“ mit „Jetzt ergänzen“.
+- **Song bearbeiten & löschen:** im Song unter „Song bearbeiten“. Löschen fragt einmal nach.
 - **Nur Text:** Songtext bildschirmfüllend zum Mitlesen, mit einstellbarer Schriftgröße (Text antippen oder ⤢).
 - **Videos automatisch:** Fehlt einer Fassung das Video, sucht Glasklang über die YouTube Data API das erste einbettbare Ergebnis und bettet es ein. Unter „Anderes Video“ stehen die nächsten Treffer zur Auswahl (optional, siehe Einrichtung 5).
 - **Plan & KI-Coach:** Eigene Ansicht „Plan“ mit deinen markierten Songs. Du schreibst hinein, was dir schwerfällt; Gemini (über Firebase AI Logic) schlägt 3 Songs für die nächsten Wochen samt Techniken und konkreten Übungen vor (optional, siehe Einrichtung 6).
@@ -51,6 +53,7 @@ assets/js/karaoke.js         Karaoke-Ansicht
 assets/js/avatars.js         Glas-Avatare & Bild-Upload
 assets/js/youtube.js         Videosuche (YouTube Data API)
 assets/js/coach.js           KI-Coach: Prompt, Antwortschema, Prüfung
+assets/js/musicbrainz.js     Titelsuche beim Hinzufügen
 assets/manifest.webmanifest  App-Manifest (Home-Bildschirm)
 assets/icons/                App-Icons
 assets/js/firebase-config.js Platzhalter, wird beim Deploy aus den Secrets erzeugt
