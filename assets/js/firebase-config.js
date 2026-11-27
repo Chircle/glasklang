@@ -12,3 +12,9 @@ export const firebaseConfig = {
   messagingSenderId: "000000000000",
   appId: "1:000000000000:web:0000000000000000"
 };
+
+// Optionale Zusatzdienste (leer = ausgeschaltet).
+export const extras = {
+  youtubeApiKey: "",     // YouTube Data API v3 → Videos automatisch finden
+  recaptchaSiteKey: ""   // reCAPTCHA v3 (App Check) → KI-Coach über Firebase AI Logic
+};

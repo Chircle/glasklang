@@ -15,6 +15,9 @@ Login mit Google, Daten in Firebase Firestore, gehostet auf GitHub Pages. Es gib
 - Glaskugel-Metronom: 30–260 BPM, Tap-Tempo, Taktarten 2/4 bis 12/8, Betonung, Klänge (Glas, Holz, Klick, stumm) und Lautstärke. Das Tempo lässt sich aus jedem Song übernehmen. Das Metronom läuft weiter, wenn du in die Datenbank wechselst. Tastatur: Leertaste startet und stoppt, ↑/↓ ändern das Tempo (mit Shift in 5er-Schritten), T ist Tap.
 - Unterrichtsblatt pro Song: Coaching-Fokus, Abschnitte mit Technik-Cues, eigener Songtext, Notizen.
 - **Songtext laden** über [LRCLIB](https://lrclib.net) (freie Songtext-Datenbank, oft mit Zeitstempeln). Suchen, Vorschau ansehen, übernehmen. Der Text landet nur in deinem privaten Firestore, nie im Repository.
+- **Nur Text:** Songtext bildschirmfüllend zum Mitlesen, mit einstellbarer Schriftgröße (Text antippen oder ⤢).
+- **Videos automatisch:** Fehlt einer Fassung das Video, sucht Glasklang über die YouTube Data API das erste einbettbare Ergebnis und bettet es ein. Unter „Anderes Video“ stehen die nächsten Treffer zur Auswahl (optional, siehe Einrichtung 5).
+- **Plan & KI-Coach:** Eigene Ansicht „Plan“ mit deinen markierten Songs. Du schreibst hinein, was dir schwerfällt; Gemini (über Firebase AI Logic) schlägt 3 Songs für die nächsten Wochen samt Techniken und konkreten Übungen vor (optional, siehe Einrichtung 6).
 - **Karaoke-Ansicht:** Großer Text, bei synchronisierten Texten läuft die aktuelle Zeile mit, wahlweise zum YouTube-Video oder mit eigener Uhr. Zeile antippen springt dorthin; Versatz ±0,5 s und Schriftgröße einstellbar.
 - Rückfall-Links zu Genius und Musixmatch, wenn LRCLIB nichts findet (dort lesen, bei Bedarf von Hand abtippen).
 - **Profilbilder** für Künstler:innen, Bands und Musicals: automatisch erzeugte Glas-Avatare mit Initialen, optional ein eigenes Bild (wird auf 256 px zugeschnitten, ca. 25 KB, in `artists/{key}` gespeichert).
@@ -46,6 +49,8 @@ assets/js/store.js           Firebase- bzw. Demo-Datenschicht
 assets/js/lyrics.js          LRCLIB-Suche & LRC-Parser
 assets/js/karaoke.js         Karaoke-Ansicht
 assets/js/avatars.js         Glas-Avatare & Bild-Upload
+assets/js/youtube.js         Videosuche (YouTube Data API)
+assets/js/coach.js           KI-Coach: Prompt, Antwortschema, Prüfung
 assets/manifest.webmanifest  App-Manifest (Home-Bildschirm)
 assets/icons/                App-Icons
 assets/js/firebase-config.js Platzhalter, wird beim Deploy aus den Secrets erzeugt
@@ -82,6 +87,8 @@ firestore.rules              Sicherheitsregeln
    | `FIREBASE_PROJECT_ID` | projectId |
    | `FIREBASE_MESSAGING_SENDER_ID` | messagingSenderId |
    | `FIREBASE_APP_ID` | appId |
+   | `YOUTUBE_API_KEY` | *optional*, siehe Schritt 5 |
+   | `RECAPTCHA_SITE_KEY` | *optional*, siehe Schritt 6 |
 
 3. Unter **Settings → Pages → Build and deployment → Source** den Eintrag **GitHub Actions** wählen.
 4. Bei jedem Push auf `main` passiert jetzt automatisch Folgendes: Die Übersetzungen werden geprüft, `firebase-config.js` wird aus den Secrets erzeugt, und die Seite wird veröffentlicht. Fehlt ein Secret, bricht der Lauf mit einem klaren Hinweis ab.
@@ -111,6 +118,29 @@ Die Secrets halten die Werte aus dem **Repository** heraus. Die ausgelieferte Se
 ### 4. Erster Login
 1. Die Seite öffnen und mit deinem Google-Konto anmelden.
 2. Weil der Katalog noch leer ist, erscheint **„Startdaten importieren“**. Ein Klick schreibt die 200 Songs, die Kategorien und das Quellen-Kompendium in Firestore.
+
+### 5. Optional: Videos automatisch finden
+1. In der [Google Cloud Console](https://console.cloud.google.com/) dein Firebase-Projekt wählen und unter **APIs & Dienste → Bibliothek** die **YouTube Data API v3** aktivieren.
+2. Unter **APIs & Dienste → Anmeldedaten → Anmeldedaten erstellen → API-Schlüssel** einen neuen Schlüssel anlegen und sofort einschränken:
+   - **Website-Einschränkungen:** `https://DEIN-NAME.github.io/*`
+   - **API-Einschränkungen:** nur *YouTube Data API v3*
+3. Den Schlüssel als Repository-Secret `YOUTUBE_API_KEY` speichern.
+
+Jede Suche kostet Kontingent; standardmäßig reicht es für etwa **100 Suchen pro Tag**. Glasklang sucht pro Fassung nur einmal und speichert Treffer und Alternativen. Ist das Kontingent aufgebraucht, erscheint ein Hinweis, und am nächsten Tag geht es weiter.
+
+### 6. Optional: KI-Coach (Gemini über Firebase AI Logic)
+1. Firebase Console → **AI Services → AI Logic → Get started** → Anbieter **Gemini Developer API** wählen (kostenloses Kontingent, keine Abrechnung nötig).
+2. **App Check** einrichten, das Firebase für AI Logic inzwischen verlangt:
+   - Unter [google.com/recaptcha/admin](https://www.google.com/recaptcha/admin) einen **reCAPTCHA v3**-Schlüssel für die Domain `DEIN-NAME.github.io` anlegen.
+   - Firebase Console → **App Check** → deine Web-App → **reCAPTCHA** → den **geheimen Schlüssel** eintragen. Für *Firebase AI Logic* die Erzwingung aktivieren.
+   - Den **Websiteschlüssel** (Site Key) als Repository-Secret `RECAPTCHA_SITE_KEY` speichern.
+3. Falls du beim Firebase-Browser-Schlüssel API-Einschränkungen gesetzt hast, dort die *Firebase AI Logic API* ergänzen.
+
+Was gesendet wird: deine Songliste (Titel, Interpret:in, Niveau, Register, Umfang, Techniken), Plan, gemeisterte Songs, deine Notizen zu den Plan-Songs und der Text aus „Was fällt dir gerade schwer?“. Keine Songtexte, keine E-Mail-Adresse. Beim kostenlosen Kontingent kann Google Eingaben laut den Gemini-API-Bedingungen zur Verbesserung seiner Dienste verwenden. Schreib dort also nichts, was du nicht teilen möchtest.
+
+Die Antwort wird gegen den Katalog geprüft: Nur echte Songs und die sechs bekannten Techniken erscheinen in der App. Der letzte Plan wird in deinem Konto gespeichert. Ohne Secret (und im Demo-Modus) entsteht der Vorschlag nach einfachen Regeln.
+
+Das verwendete Modell steht oben in `assets/js/store.js` (`AI_MODELS`). Google benennt Modelle regelmäßig um; antwortet eines nicht mehr, wird automatisch das nächste in der Liste probiert.
 
 ## Songtexte & Videos ergänzen
 Die Startdaten enthalten **keine Songtexte**. So ergänzt du sie:
@@ -148,11 +178,11 @@ Danach `review` löschen oder auf `false` setzen.
 ## Datenmodell
 | Pfad | Inhalt | Lesen | Schreiben |
 |---|---|---|---|
-| `songs/{id}` | schema, order, category, artist, key[{tonic, mode}], range, bpm, difficulty, register, mood, techniques[], tip{de,en}, coachingQuery, sections[{type, n, label?, cue{de,en}}], versions[{id, lang, title, performer, lyrics, video, synced?, lyricsSource?}], review? | Besitzer:in | Besitzer:in |
+| `songs/{id}` | schema, order, category, artist, key[{tonic, mode}], range, bpm, difficulty, register, mood, techniques[], tip{de,en}, coachingQuery, sections[{type, n, label?, cue{de,en}}], versions[{id, lang, title, performer, lyrics, video, videoTitle?, videoAuto?, videoAlts?, synced?, lyricsSource?}], review? | Besitzer:in | Besitzer:in |
 | `meta/categories` | items[{id, label, order}] | Besitzer:in | Besitzer:in |
 | `meta/compendium` | items[{id, title{de,en}, html{de,en}}] | Besitzer:in | Besitzer:in |
 | `artists/{key}` | name, image (Data-URL) | Besitzer:in | Besitzer:in |
-| `users/{uid}` | favorites[], completed[], notes{}, theme, lang, metronome{} | nur das eigene Konto | nur das eigene Konto |
+| `users/{uid}` | favorites[], completed[], notes{}, theme, lang, metronome{}, coach{note, source, result, at} | nur das eigene Konto | nur das eigene Konto |
 
 ## Lokal testen
 ```bash

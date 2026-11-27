@@ -6,6 +6,8 @@ import { LANGS, t, L, isFallback, setLang, getLang, detectLang, translateDOM, co
 import { searchLyrics, lrcToPlain, fmtDuration, externalLyricsLinks } from './lyrics.js';
 import { openKaraoke, closeKaraoke, bindKaraoke } from './karaoke.js';
 import { artistKey, avatarHTML, processImage } from './avatars.js';
+import { youtubeEnabled, searchVideos } from './youtube.js';
+import { coachSchema, buildPrompt, validatePlan, rulePlan } from './coach.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -21,7 +23,8 @@ const ENUMS = {
 const TECH_COLORS = { belting: '#ef7a6c', mix: '#9a6bff', legit: '#6fb6ff', twang: '#f5a65b', runs: '#e36fb4', support: '#45c19a' };
 const DIFF_RANK = { beginner: 1, intermediate: 2, advanced: 3 };
 const EDIT_LANGS = ['de', 'en', 'fr', 'es', 'it', 'pt', 'nl', 'sv', 'da', 'no', 'pl', 'cs', 'hu', 'el', 'tr', 'ru', 'ja', 'ko', 'zh', 'he', 'ar', 'la'];
-const VIEWS = ['katalog', 'technik', 'metronom'];
+const VIEWS = ['katalog', 'technik', 'metronom', 'plan'];
+const COACH_DEFAULT = { note: '', source: 'plan', result: null, at: null };
 const METRO_DEFAULT = { bpm: 96, meter: 4, sound: 'glas', volume: 0.7, accent: true };
 const mobile = matchMedia('(max-width: 900px)');
 const coarse = matchMedia('(pointer: coarse)');
@@ -147,6 +150,7 @@ async function enterApp() {
                        : [...new Set(S.songs.map(s => s.category))].map((id, i) => ({ id, label: id, order: i }));
   S.comp = comp;
   S.u = { ...S.u, favorites: [], completed: [], notes: {}, ...u };
+  S.u.coach = { ...COACH_DEFAULT, ...(S.u.coach || {}) };
   if (S.u.theme) applyTheme(S.u.theme);
   if (S.u.lang && S.u.lang !== getLang()) await setLang(S.u.lang);
   S.sel = S.sel || (song('wk1') ? 'wk1' : S.songs[0]?.id) || null;
@@ -174,6 +178,7 @@ function renderAll() {
   fillMetroSongs();
   metroLabels();
   if (S.view === 'technik') renderBubbles();
+  if (S.view === 'plan') renderPlan();
   apply();
 }
 
@@ -347,18 +352,92 @@ function searchUrl(s, v) {
   if (v.lang !== orig.lang) parts.push(autonym(v.lang));
   return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(parts.filter(Boolean).join(' '));
 }
+const YT = { tried: new Set(), busy: new Set(), quota: false, open: null };
+const ytKey = (s, v) => `${s.id}:${v.id}`;
+
 function videoBlock(s, v) {
   const id = youtubeId(v.video);
+  const k = ytKey(s, v);
   if (id) {
-    return `<div class="video" data-yt="${esc(id)}">
-      <button type="button" class="video-load" data-load-video>
-        <span class="video-play"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg></span>
-        <span><b>${esc(t('video.load'))}</b><small>${esc(t('video.privacy'))}</small></span>
-      </button></div>
-      <a class="link-ext" href="${esc(v.video)}" target="_blank" rel="noopener">${esc(t('video.openYoutube'))}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>`;
+    const alts = (v.videoAlts || []).filter(a => a.id !== id);
+    const canPick = alts.length || youtubeEnabled();
+    const open = YT.open === k;
+    return `<div class="video" data-key="${esc(k + ':' + id)}"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1" title="${esc(v.videoTitle || v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <div class="video-meta">
+        ${v.videoAuto ? `<span class="badge badge--accent">${esc(t('video.auto'))}</span>` : ''}
+        <a class="link-ext" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">${esc(t('video.openYoutube'))}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>
+        ${canPick ? `<button type="button" class="btn btn--sm btn--ghost" data-video-alts aria-expanded="${open}">${esc(t('video.other'))}<svg class="ico ico--sm chev${open ? ' is-up' : ''}" aria-hidden="true"><use href="#i-chevron"/></svg></button>` : ''}
+      </div>
+      ${open ? videoAltsList(s, v, alts) : ''}`;
   }
   if (v.video) return `<a class="link-ext" href="${esc(v.video)}" target="_blank" rel="noopener">${esc(t('video.open'))}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>`;
-  return `<a class="link-ext" href="${esc(searchUrl(s, v))}" target="_blank" rel="noopener">${esc(t('video.search', { lang: langName(v.lang) }))}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>`;
+  if (YT.busy.has(k)) return `<div class="video video--pending"><span class="spinner" aria-hidden="true"></span><span>${esc(t('video.searching'))}</span></div>`;
+  return `<a class="link-ext" href="${esc(searchUrl(s, v))}" target="_blank" rel="noopener">${esc(t('video.search', { lang: langName(v.lang) }))}<svg class="ico ico--sm" aria-hidden="true"><use href="#i-external"/></svg></a>
+    ${youtubeEnabled() && !YT.quota ? `<button type="button" class="btn btn--sm btn--ghost" data-video-find><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg>${esc(t('video.find'))}</button>` : ''}`;
+}
+function videoAltsList(s, v, alts) {
+  return `<div class="video-alts">
+    ${alts.length ? `<ul>${alts.map(a => `<li><button type="button" class="video-alt" data-video-pick="${esc(a.id)}">
+        <img src="https://i.ytimg.com/vi/${encodeURIComponent(a.id)}/mqdefault.jpg" alt="" loading="lazy" width="96" height="54">
+        <span><b>${esc(a.title)}</b><small>${esc(a.channel)}</small></span></button></li>`).join('')}</ul>`
+      : `<p class="sec-empty">${esc(t('video.noAlts'))}</p>`}
+    ${youtubeEnabled() && !YT.quota ? `<button type="button" class="btn btn--sm btn--ghost" data-video-find>${esc(t('video.searchAgain'))}</button>` : ''}
+  </div>`;
+}
+
+/** Sucht das erste einbettbare Video und speichert es samt Alternativen an der Fassung. */
+async function findVideo(s, v, { manual = false } = {}) {
+  const k = ytKey(s, v);
+  if (!youtubeEnabled() || YT.quota || YT.busy.has(k)) return;
+  YT.tried.add(k); YT.busy.add(k);
+  if (S.sel === s.id) renderInspector();
+  try {
+    const orig = versions(s)[0];
+    const hits = await searchVideos({
+      title: v.title,
+      performer: v.performer || L(s.artist),
+      lang: v.lang !== orig.lang ? v.lang : null
+    });
+    YT.busy.delete(k);
+    if (!hits.length) { if (manual) toast(t('video.none')); if (S.sel === s.id) renderInspector(); return; }
+    const keep = manual && youtubeId(v.video);
+    const list = versions(s).map(x => (x.id === v.id
+      ? { ...x, ...(keep ? {} : { video: `https://www.youtube.com/watch?v=${hits[0].id}`, videoTitle: hits[0].title, videoAuto: true }), videoAlts: hits }
+      : { ...x }));
+    await S.store.updateSong(s.id, { versions: list });
+    s.versions = list;
+    if (keep) YT.open = k;
+  } catch (e) {
+    YT.busy.delete(k);
+    if (e.message === 'quota') { YT.quota = true; toast(t('video.quota')); }
+    else if (e.message === 'denied') { YT.quota = true; toast(t('video.denied')); console.warn('YouTube-API: Schlüssel abgelehnt (Einschränkungen prüfen).'); }
+    else if (manual) toast(t('video.failed'));
+  }
+  if (S.sel === s.id) renderInspector();
+}
+async function pickVideo(id) {
+  const s = song(S.sel); if (!s) return;
+  const v = currentVersion(s);
+  const alt = (v.videoAlts || []).find(a => a.id === id);
+  const list = versions(s).map(x => (x.id === v.id ? { ...x, video: `https://www.youtube.com/watch?v=${id}`, videoTitle: alt?.title || '', videoAuto: false } : { ...x }));
+  try {
+    await S.store.updateSong(s.id, { versions: list });
+    s.versions = list; YT.open = null;
+    toast(t('video.picked'));
+    renderInspector();
+  } catch (e) { console.error(e); toast(t('toast.saveFailed')); }
+}
+/** Nach dem Rendern: fehlt das Video, automatisch das beste Ergebnis holen (einmal pro Fassung). */
+function maybeAutoVideo(s, v) {
+  if (!s || !v || v.video || !youtubeEnabled() || YT.quota) return;
+  if (YT.tried.has(ytKey(s, v))) return;
+  setTimeout(() => {
+    // nur, wenn der Song wirklich sichtbar ist (Handy: Sheet offen)
+    if (S.sel !== s.id || S.view !== 'katalog') return;
+    if (mobile.matches && !$('#inspector').classList.contains('is-open')) return;
+    if (currentVersion(s).id !== v.id) return;
+    findVideo(s, v);
+  }, 400);
 }
 function lyricsBlock(text) {
   const blocks = [];
@@ -373,6 +452,32 @@ function lyricsBlock(text) {
 }
 
 /* --------------------------------------------------------- Inspektor */
+/**
+ * Ersetzt den Inhalt von box durch html, lässt aber ein laufendes Video-iframe
+ * (gleiches data-key) im DOM stehen – sonst würde jedes Neuzeichnen das Video neu laden.
+ */
+function patchKeepVideo(box, html) {
+  const oldKeep = box.querySelector('.video[data-key]');
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const newKeep = tpl.content.querySelector('.video[data-key]');
+  if (!oldKeep || !newKeep || oldKeep.dataset.key !== newKeep.dataset.key) { box.innerHTML = html; return; }
+  const merge = (oldP, newP) => {
+    const oldPath = [...oldP.children].find(c => c === oldKeep || c.contains(oldKeep));
+    const newPath = [...newP.children].find(c => c === newKeep || c.contains(newKeep));
+    if (!oldPath || !newPath || (oldPath !== oldKeep && oldPath.tagName !== newPath.tagName)) return false;
+    [...oldP.childNodes].forEach(n => { if (n !== oldPath) n.remove(); });
+    const nodes = [...newP.childNodes], idx = nodes.indexOf(newPath);
+    oldPath.before(...nodes.slice(0, idx));
+    oldPath.after(...nodes.slice(idx + 1));
+    if (oldPath === oldKeep) return true;
+    [...oldPath.attributes].forEach(at => oldPath.removeAttribute(at.name));
+    [...newPath.attributes].forEach(at => oldPath.setAttribute(at.name, at.value));
+    return merge(oldPath, newPath);
+  };
+  if (!merge(box, tpl.content)) box.innerHTML = html;
+}
+
 function renderInspector() {
   const box = $('#inspector-inner');
   const s = song(S.sel);
@@ -382,7 +487,7 @@ function renderInspector() {
   const alts = altTitles(s);
   const hasImg = !!S.artists[artistKey(s.artist)]?.image;
   const links = externalLyricsLinks(v.title, v.performer || L(s.artist));
-  box.innerHTML = `<div class="insp-anim">
+  patchKeepVideo(box, `<div class="insp-anim">
     <div class="insp-head">
       <div class="insp-avatar">
         ${artistAvatar(s, 72, 'av-lg')}
@@ -432,13 +537,14 @@ function renderInspector() {
         </div>
         ${videoBlock(s, v)}
         <div class="ly-actions">
-          ${v.lyrics ? `<button type="button" class="btn btn--sm btn--primary" data-karaoke><svg class="ico ico--sm" aria-hidden="true"><use href="#i-${v.synced ? 'mic' : 'text'}"/></svg>${esc(t(v.synced ? 'karaoke.open' : 'karaoke.openPlain'))}</button>` : ''}
+          ${v.synced ? `<button type="button" class="btn btn--sm btn--primary" data-karaoke><svg class="ico ico--sm" aria-hidden="true"><use href="#i-mic"/></svg>${esc(t('karaoke.open'))}</button>` : ''}
+          ${v.lyrics ? `<button type="button" class="btn btn--sm ${v.synced ? 'btn--ghost' : 'btn--primary'}" data-lyrics-view><svg class="ico ico--sm" aria-hidden="true"><use href="#i-text"/></svg>${esc(t('karaoke.openPlain'))}</button>` : ''}
           <button type="button" class="btn btn--sm ${v.lyrics ? 'btn--ghost' : 'btn--primary'}" data-lyrics-load><svg class="ico ico--sm" aria-hidden="true"><use href="#i-download"/></svg>${esc(t(v.lyrics ? 'lyrics.reload' : 'lyrics.load'))}</button>
         </div>
         ${v.synced ? `<span class="badge badge--accent ly-sync-badge">${esc(t('lyrics.synced'))}</span>` : ''}
         ${v.lyrics
           ? `<div class="lyrics-wrap">
-              <button type="button" class="icon-btn ly-expand" data-karaoke aria-label="${esc(t('lyrics.fullscreen'))}" title="${esc(t('lyrics.fullscreen'))}"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></button>
+              <button type="button" class="icon-btn ly-expand" data-lyrics-view aria-label="${esc(t('lyrics.fullscreen'))}" title="${esc(t('lyrics.fullscreen'))}"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></button>
               <div class="lyrics" data-karaoke-tap>${lyricsBlock(v.lyrics)}</div>
             </div>`
           : `<div class="lyrics"><p class="sec-empty">${esc(t('versions.noLyricsOwner'))}</p></div>`}
@@ -467,8 +573,9 @@ function renderInspector() {
       <label class="lbl" for="note">${esc(t('sheet.notes'))}</label>
       <textarea id="note" class="notes" data-note="${esc(s.id)}" placeholder="${esc(t('sheet.notesHint'))}">${esc(S.u.notes[s.id] || '')}</textarea>
     </div>
-  </div>`;
+  </div>`);
   renderPrint(s);
+  maybeAutoVideo(s, v);
 }
 
 /* ------------------------------------------------- Bottom-Sheets (Handy) */
@@ -555,6 +662,7 @@ function toggleIn(listName, id, btn) {
   if (listName === 'favorites') fillMetroSongs();
   if (id === S.sel) renderInspector();
   if (S.f.fav && listName === 'favorites') apply();
+  if (S.view === 'plan') renderPlan();
   save(250);
 }
 
@@ -669,7 +777,8 @@ async function applyLyrics() {
 }
 
 /* ------------------------------------------------ Vollbild / Karaoke */
-function startKaraoke() {
+/** plain = true → nur Text (ohne Mitlaufen), sonst Karaoke, falls Zeitstempel vorhanden. */
+function startKaraoke(plain = false) {
   const s = song(S.sel);
   if (!s) return;
   const v = currentVersion(s);
@@ -677,7 +786,7 @@ function startKaraoke() {
   openKaraoke({
     title: v.title,
     sub: `${v.performer || L(s.artist)} · ${autonym(v.lang)}`,
-    lyrics: v.lyrics, synced: v.synced, videoId: youtubeId(v.video), t
+    lyrics: v.lyrics || lrcToPlain(v.synced || ''), synced: plain ? null : v.synced, videoId: youtubeId(v.video), t
   });
 }
 
@@ -767,7 +876,108 @@ function route() {
   if (view !== 'katalog') { closeSheet(); closeFilters(); }
   closeKaraoke();
   if (view === 'technik') requestAnimationFrame(renderBubbles);
+  if (view === 'plan') renderPlan();
   if (changed) window.scrollTo({ top: 0 });
+}
+
+/* ------------------------------------------------- Plan & KI-Coach */
+function openSong(id) {
+  if (!song(id)) return;
+  go('katalog');
+  requestAnimationFrame(() => {
+    if (S.f.fav && !S.u.favorites.includes(id)) { S.f.fav = false; apply(); }
+    select(id);
+    document.querySelector(`.card[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  });
+}
+function songRow(s, extra = '') {
+  const done = S.u.completed.includes(s.id);
+  return `<div class="plan-row">
+    ${artistAvatar(s, 40, 'card-av')}
+    <button type="button" class="plan-main" data-open-song="${esc(s.id)}">
+      <b>${esc(mainTitle(s))}</b>
+      <small>${esc(L(s.artist))} · <span class="badge ${diffBadge(s.difficulty)}">${esc(tEnum('difficulty', s.difficulty))}</span>${done ? ` · <span class="badge badge--mint">${esc(t('action.isDone'))}</span>` : ''}</small>
+    </button>${extra}</div>`;
+}
+function renderPlan() {
+  const plan = S.u.favorites.map(song).filter(Boolean);
+  $('#plan-count').textContent = fmtNum(plan.length);
+  $('#plan-list').innerHTML = plan.length
+    ? plan.map(s => `<li>${songRow(s, `<button type="button" class="icon-btn icon-btn--sm is-fav" data-fav="${esc(s.id)}" aria-pressed="true" aria-label="${esc(t('plan.remove'))}" title="${esc(t('plan.remove'))}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-star"/></svg></button>`)}</li>`).join('')
+    : `<li class="plan-empty"><p>${esc(t('plan.empty'))}</p><a class="btn btn--sm" href="#/katalog">${esc(t('plan.toCatalog'))}</a></li>`;
+
+  const c = S.u.coach;
+  const note = $('#coach-note');
+  if (document.activeElement !== note) note.value = c.note || '';
+  $$('[data-coach-source]').forEach(b => { const on = b.dataset.coachSource === c.source; b.classList.toggle('is-on', on); b.setAttribute('aria-checked', String(on)); b.setAttribute('role', 'radio'); });
+  const ai = S.store.aiAvailable;
+  $('#coach-engine').textContent = ai ? 'Gemini · Firebase AI Logic' : S.store.demo ? t('coach.engineRules') : t('coach.engineOff');
+  $('#coach-privacy').textContent = ai ? t('coach.privacy') : S.store.demo ? t('coach.demoHint') : t('coach.offHint');
+  $('#coach-go').disabled = !(ai || S.store.demo) || COACH.busy;
+  renderCoachResult();
+}
+const COACH = { busy: false };
+function renderCoachResult() {
+  const box = $('#coach-result');
+  const c = S.u.coach;
+  if (COACH.busy) { box.innerHTML = `<div class="coach-busy"><span class="spinner" aria-hidden="true"></span>${esc(t('coach.thinking'))}</div>`; return; }
+  const r = c.result;
+  if (!r) { box.innerHTML = ''; return; }
+  const when = c.at ? new Intl.DateTimeFormat(getLang(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(c.at)) : '';
+  const techBadge = id => `<button type="button" class="badge tech-badge" data-coach-tech="${esc(id)}" style="background:color-mix(in srgb, ${TECH_COLORS[id] || '#9a6bff'} 20%, transparent)">${esc(tEnum('techniques', id))}</button>`;
+  box.innerHTML = `
+    ${r.caution ? `<p class="coach-caution">${esc(r.caution)}</p>` : ''}
+    ${r.summary ? `<p class="coach-summary">${esc(r.summary)}</p>` : ''}
+    <span class="lbl">${esc(t('coach.nextSongs'))}</span>
+    <ol class="coach-songs">${r.songs.map((x, i) => {
+      const s = song(x.id); if (!s) return '';
+      const inPlan = S.u.favorites.includes(s.id);
+      return `<li class="coach-song">
+        <span class="coach-num" aria-hidden="true">${i + 1}</span>
+        <div class="coach-song-body">
+          ${songRow(s, inPlan ? '' : `<button type="button" class="btn btn--sm btn--ghost" data-fav="${esc(s.id)}"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-plus"/></svg>${esc(t('coach.addToPlan'))}</button>`)}
+          ${x.why ? `<p>${esc(x.why)}</p>` : ''}
+          ${x.focus.length ? `<div class="badges">${x.focus.map(techBadge).join('')}</div>` : ''}
+          ${x.exercise ? `<p class="coach-ex"><b>${esc(t('coach.exercise'))}</b> ${esc(x.exercise)}</p>` : ''}
+        </div></li>`;
+    }).join('')}</ol>
+    ${r.techniques.length ? `<span class="lbl">${esc(t('coach.techniques'))}</span>
+    <ul class="coach-techs">${r.techniques.map(x => `<li>
+      <div class="coach-tech-head">${techBadge(x.id)}</div>
+      ${x.why ? `<p>${esc(x.why)}</p>` : ''}
+      ${x.howTo ? `<p class="coach-ex"><b>${esc(t('coach.howTo'))}</b> ${esc(x.howTo)}</p>` : ''}
+    </li>`).join('')}</ul>` : ''}
+    <p class="coach-foot">${esc(r.demo ? t('coach.madeRules') : t('coach.madeAI'))}${when ? ` · ${esc(when)}` : ''}</p>`;
+}
+async function runCoach() {
+  if (COACH.busy) return;
+  const c = S.u.coach;
+  c.note = $('#coach-note').value;
+  COACH.busy = true; $('#coach-go').disabled = true; renderCoachResult();
+  try {
+    let result;
+    if (S.store.aiAvailable) {
+      const { system, user } = buildPrompt({
+        songs: S.songs, favorites: S.u.favorites, completed: S.u.completed, notes: S.u.notes,
+        note: c.note, source: c.source, lang: getLang(), L, techName: id => tEnum('techniques', id)
+      });
+      const text = await S.store.generateJSON({ system, user, schemaFn: coachSchema });
+      result = validatePlan(text, S.songs);
+    } else if (S.store.demo) {
+      await new Promise(r => setTimeout(r, 500));
+      result = rulePlan({ songs: S.songs, favorites: S.u.favorites, completed: S.u.completed, source: c.source, t });
+    } else return;
+    c.result = result; c.at = Date.now();
+    save(200);
+    haptic(14);
+  } catch (e) {
+    console.error(e);
+    const m = String(e?.message || e);
+    toast(t(m === 'empty' ? 'coach.empty' : /app.?check|recaptcha/i.test(m) ? 'coach.appCheck' : /quota|429|resource.?exhausted/i.test(m) ? 'coach.quota' : 'coach.failed'));
+  } finally {
+    COACH.busy = false;
+    if (S.view === 'plan') renderPlan();
+  }
 }
 
 /* ------------------------------------------------------------ Metronom */
@@ -936,7 +1146,8 @@ function bind() {
     if (mb) { metroFromSong(mb.dataset.metro); closeSheet(); return go('metronom'); }
     if (e.target.closest('[data-lyrics-load]')) return openLyricsDialog();
     if (e.target.closest('[data-karaoke]')) return startKaraoke();
-    if (e.target.closest('[data-karaoke-tap]') && !String(getSelection?.() || '')) return startKaraoke();
+    if (e.target.closest('[data-lyrics-view]')) return startKaraoke(true);
+    if (e.target.closest('[data-karaoke-tap]') && !String(getSelection?.() || '')) return startKaraoke(true);
     if (e.target.closest('[data-avatar-pick]')) return pickAvatar();
     if (e.target.closest('[data-avatar-remove]')) return removeAvatar();
     const lp = e.target.closest('[data-ly-pick]');
@@ -946,6 +1157,17 @@ function bind() {
     if (e.target.closest('[data-version-add]')) return openVersionEditor(S.sel, null);
     const ve = e.target.closest('[data-version-edit]');
     if (ve) return openVersionEditor(S.sel, ve.dataset.versionEdit);
+    const os = e.target.closest('[data-open-song]');
+    if (os) return openSong(os.dataset.openSong);
+    const ct = e.target.closest('[data-coach-tech]');
+    if (ct) { setTech(ct.dataset.coachTech, true); return go('katalog'); }
+    const cs = e.target.closest('[data-coach-source]');
+    if (cs) { S.u.coach.source = cs.dataset.coachSource; save(400); return renderPlan(); }
+    if (e.target.closest('#coach-go')) return runCoach();
+    if (e.target.closest('[data-video-find]')) { const s = song(S.sel); if (s) findVideo(s, currentVersion(s), { manual: true }); return; }
+    if (e.target.closest('[data-video-alts]')) { const s = song(S.sel); const k = s && ytKey(s, currentVersion(s)); YT.open = YT.open === k ? null : k; return renderInspector(); }
+    const vp = e.target.closest('[data-video-pick]');
+    if (vp) return pickVideo(vp.dataset.videoPick);
     const lv = e.target.closest('[data-load-video]');
     if (lv) {
       const box = lv.closest('[data-yt]');
@@ -970,6 +1192,7 @@ function bind() {
     if (e.key === 'Escape') { closeSheet(); closeFilters(); $('#user-menu').hidden = true; $$('[data-lang-menu]').forEach(m => { m.hidden = true; }); }
   });
   document.addEventListener('input', e => {
+    if (e.target.id === 'coach-note') { S.u.coach.note = e.target.value; save(1200); return; }
     if (e.target.matches('[data-note]')) {
       S.u.notes[e.target.dataset.note] = e.target.value;
       const s = song(e.target.dataset.note);

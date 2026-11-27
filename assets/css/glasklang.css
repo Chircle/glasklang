@@ -424,6 +424,20 @@ input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius
 .version-sub { font-size: .85rem; text-transform: none; }
 .video { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-md); overflow: hidden; background: var(--glass-deep); border: 1px solid var(--glass-line); }
 .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.video--pending { aspect-ratio: auto; display: flex; align-items: center; gap: .7rem; padding: .9rem 1rem; font-size: .88rem; color: var(--ink-soft); }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--glass-line); border-top-color: var(--accent); animation: spin 800ms linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.video-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; }
+.chev { transition: transform var(--t-fast); }
+.chev.is-up { transform: rotate(180deg); }
+.video-alts { display: grid; gap: .5rem; animation: fade-up 300ms var(--ease-out); }
+.video-alts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.video-alt { width: 100%; display: flex; align-items: center; gap: .7rem; padding: .4rem; border-radius: var(--r-md); border: 1px solid var(--glass-line); background: var(--glass); cursor: pointer; text-align: start; color: var(--ink); }
+.video-alt:hover { background: var(--glass-strong); }
+.video-alt img { width: 96px; height: 54px; object-fit: cover; border-radius: 10px; flex: none; background: var(--glass-deep); }
+.video-alt span { min-width: 0; display: grid; gap: .1rem; }
+.video-alt b { font-size: .86rem; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.video-alt small { font-size: .76rem; color: var(--ink-faint); }
 .video-load { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: .9rem; border: 0; cursor: pointer; background: transparent; padding: 1rem; text-align: start; }
 .video-load small { display: block; font-size: .76rem; color: var(--ink-faint); font-weight: 400; }
 .video-play { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--accent-ink);
@@ -580,6 +594,46 @@ html.k-open .dock { transform: translateY(140%); }
 
 /* ---------- Konstellation & Kompendium ---------- */
 .duo { display: grid; align-items: stretch; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--sp-5); }
+/* Plan & KI-Coach */
+.plan-duo { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; }
+.plan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.plan-row { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.plan-main { flex: 1; min-width: 0; display: grid; gap: .15rem; text-align: start; border: 0; background: transparent; padding: .35rem .2rem; cursor: pointer; color: var(--ink); border-radius: var(--r-sm, 12px); }
+.plan-main b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-main small { font-size: .78rem; color: var(--ink-faint); display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
+.plan-main:hover b { color: var(--accent); }
+.plan-list > li { padding: .25rem .4rem; border-radius: var(--r-md); }
+.plan-list > li:hover { background: var(--glass); }
+.plan-empty { display: grid; justify-items: start; gap: .6rem; color: var(--ink-soft); }
+.plan-empty p { margin: 0; }
+.coach-tile { display: flex; flex-direction: column; gap: var(--sp-3); }
+.coach-tile .tile-head { margin-bottom: 0; }
+.coach-eyebrow { display: inline-flex; align-items: center; gap: .4rem; color: var(--accent); }
+.coach-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; }
+.coach-privacy { margin: 0; font-size: .76rem; color: var(--ink-faint); }
+.coach-result { display: grid; gap: var(--sp-3); }
+.coach-result:empty { display: none; }
+.coach-busy { display: flex; align-items: center; gap: .7rem; padding: 1rem; border-radius: var(--r-md); background: var(--glass); color: var(--ink-soft); font-size: .9rem; }
+.coach-summary { margin: 0; font-size: 1rem; line-height: 1.6; }
+.coach-caution { margin: 0; padding: .8rem 1rem; border-radius: var(--r-md); background: var(--coral-soft); color: var(--ink); font-size: .9rem; }
+.coach-songs, .coach-techs { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.coach-song { display: flex; gap: .7rem; padding: .8rem; border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--glass-line); animation: fade-up 420ms var(--ease-out) both; }
+.coach-song:nth-child(2) { animation-delay: 80ms; } .coach-song:nth-child(3) { animation-delay: 160ms; }
+.coach-num { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .9rem; background: var(--accent-grad); color: var(--accent-ink); margin-top: .35rem; }
+.coach-song-body { flex: 1; min-width: 0; display: grid; gap: .4rem; }
+.coach-song-body p, .coach-techs p { margin: 0; font-size: .9rem; color: var(--ink-soft); line-height: 1.55; }
+.coach-ex b { color: var(--ink); font-weight: 600; }
+.coach-techs > li { padding: .7rem .8rem; border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--glass-line); display: grid; gap: .35rem; }
+.tech-badge { cursor: pointer; border-color: transparent; color: var(--ink); }
+.coach-foot { margin: 0; font-size: .74rem; color: var(--ink-faint); }
+@media (max-width: 900px) { .plan-duo { grid-template-columns: 1fr; } .coach-tile { order: -1; } }
+@media (max-width: 640px) {
+  .coach-row { flex-direction: column; align-items: stretch; }
+  .coach-row .segmented { align-self: stretch; justify-content: center; }
+  .coach-row .btn { justify-content: center; }
+  .coach-song { padding: .7rem .6rem; gap: .5rem; }
+  .coach-song .plan-row .btn { padding-inline: .6rem; }
+}
 .tile--tall { min-height: 380px; display: flex; flex-direction: column; }
 .bubbles { position: relative; flex: 1; min-height: 300px; }
 .bubble { --s: 110px; --c: #9a6bff; position: absolute; width: var(--s); height: var(--s); border-radius: 50%;

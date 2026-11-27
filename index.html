@@ -165,6 +165,40 @@
         </section>
       </section>
 
+      <!-- ================= Plan & KI-Coach ================= -->
+      <section class="view" data-view="plan" hidden>
+        <header class="view-head">
+          <div>
+            <span class="eyebrow" data-i18n="view.plan"></span>
+            <h1 class="view-title"><span data-i18n="plan.title"></span> <span class="count" id="plan-count">0</span></h1>
+            <span class="muted" data-i18n="plan.lead"></span>
+          </div>
+        </header>
+        <section class="duo plan-duo">
+          <article class="glass tile">
+            <header class="tile-head"><span class="eyebrow" data-i18n="plan.songs"></span></header>
+            <ul class="plan-list" id="plan-list"></ul>
+          </article>
+          <article class="glass-deep tile coach-tile" id="coach">
+            <header class="tile-head">
+              <span class="eyebrow coach-eyebrow"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-sparkle"/></svg><span data-i18n="coach.title"></span></span>
+              <span class="hint" id="coach-engine"></span>
+            </header>
+            <label class="lbl" for="coach-note" data-i18n="coach.noteLabel"></label>
+            <textarea id="coach-note" class="notes" rows="4" data-i18n-attr="placeholder:coach.notePlaceholder"></textarea>
+            <div class="coach-row">
+              <div class="segmented" id="coach-source" role="radiogroup" data-i18n-attr="aria-label:coach.source">
+                <button type="button" class="seg" data-coach-source="plan" data-i18n="coach.sourcePlan"></button>
+                <button type="button" class="seg" data-coach-source="all" data-i18n="coach.sourceAll"></button>
+              </div>
+              <button type="button" class="btn btn--primary" id="coach-go"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-sparkle"/></svg><span data-i18n="coach.go"></span></button>
+            </div>
+            <p class="coach-privacy" id="coach-privacy"></p>
+            <div class="coach-result" id="coach-result" aria-live="polite"></div>
+          </article>
+        </section>
+      </section>
+
       <!-- ================= Technik ================= -->
       <section class="view" data-view="technik" hidden>
         <header class="view-head">
@@ -249,7 +283,7 @@
       <a class="dock-item" href="#/katalog" data-go="katalog"><svg class="ico" aria-hidden="true"><use href="#i-music"/></svg><span data-i18n="view.katalog"></span></a>
       <a class="dock-item" href="#/technik" data-go="technik"><svg class="ico" aria-hidden="true"><use href="#i-orbit"/></svg><span data-i18n="view.technik"></span></a>
       <a class="dock-item dock-metro" href="#/metronom" data-go="metronom"><svg class="ico" aria-hidden="true"><use href="#i-metro"/></svg><span data-i18n="view.metronom"></span><i class="dock-pulse" aria-hidden="true"></i></a>
-      <button type="button" class="dock-item" data-action="plan"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="dock.plan"></span></button>
+      <a class="dock-item" href="#/plan" data-go="plan"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="dock.plan"></span></a>
     </nav>
     <div class="scrim" id="scrim" hidden></div>
   </div>

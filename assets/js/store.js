@@ -1,9 +1,14 @@
 // Datenschicht: Firebase (Auth + Firestore) oder Demo (seed.json + localStorage)
 // Glasklang ist eine Ein-Personen-App: Lesen und Schreiben darf nur das Besitzer-Konto (siehe firestore.rules).
-import { firebaseConfig } from './firebase-config.js';
+import * as cfg from './firebase-config.js';
 
-const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
-const emptyState = () => ({ favorites: [], completed: [], notes: {}, theme: null, lang: null, metronome: null });
+const { firebaseConfig } = cfg;
+const extras = cfg.extras || {};
+
+const FB = 'https://www.gstatic.com/firebasejs/13.4.0/';
+// Modelle für den KI-Coach (Gemini Developer API, ohne Abrechnung nutzbar). Das erste, das antwortet, gewinnt.
+const AI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+const emptyState = () => ({ favorites: [], completed: [], notes: {}, theme: null, lang: null, metronome: null, coach: null });
 
 export function isDemo() {
   return /[?&]demo\b/.test(location.search) || !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('DEIN_');
@@ -26,6 +31,9 @@ function createDemoStore() {
 
   return {
     demo: true,
+    // Für Tests: globalThis.__GK_AI_MOCK = async ({system, user}) => '{…}' simuliert die KI.
+    get aiAvailable() { return typeof globalThis.__GK_AI_MOCK === 'function'; },
+    async generateJSON(req) { return globalThis.__GK_AI_MOCK(req); },
     onAuth(cb) { setTimeout(() => cb(user), 0); },
     async signIn() {},
     async signOut() { location.reload(); },
@@ -59,6 +67,14 @@ async function createFirebaseStore() {
   const { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } = fs;
 
   const app = initializeApp(firebaseConfig);
+  // App Check (reCAPTCHA v3) schützt den KI-Zugang; ohne Site-Key bleibt der KI-Coach aus.
+  if (extras.recaptchaSiteKey) {
+    try {
+      const { initializeAppCheck, ReCaptchaV3Provider } = await import(FB + 'firebase-app-check.js');
+      initializeAppCheck(app, { provider: new ReCaptchaV3Provider(extras.recaptchaSiteKey), isTokenAutoRefreshEnabled: true });
+    } catch (e) { console.warn('App Check nicht verfügbar', e); }
+  }
+  let aiMod = null, aiInst = null;
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
@@ -66,6 +82,30 @@ async function createFirebaseStore() {
 
   return {
     demo: false,
+    aiAvailable: !!extras.recaptchaSiteKey,
+
+    /** Fragt Gemini und liefert den Antworttext (JSON nach schemaFn). */
+    async generateJSON({ system, user, schemaFn }) {
+      aiMod ??= await import(FB + 'firebase-ai.js');
+      const { getAI, getGenerativeModel, GoogleAIBackend, Schema } = aiMod;
+      aiInst ??= getAI(app, { backend: new GoogleAIBackend() });
+      let lastErr;
+      for (const model of AI_MODELS) {
+        try {
+          const m = getGenerativeModel(aiInst, {
+            model, systemInstruction: system,
+            generationConfig: { responseMimeType: 'application/json', responseSchema: schemaFn(Schema), temperature: 0.6 }
+          });
+          const res = await m.generateContent(user);
+          return res.response.text();
+        } catch (e) {
+          lastErr = e;
+          // Nur bei „Modell gibt es nicht / nicht erlaubt“ das nächste probieren.
+          if (!/not.?found|404|unsupported|permission|403/i.test(String(e?.message || e))) break;
+        }
+      }
+      throw lastErr;
+    },
     onAuth(cb) { onAuthStateChanged(auth, cb); },
     async signIn() {
       try { await signInWithPopup(auth, provider); }
@@ -111,7 +151,7 @@ async function createFirebaseStore() {
     },
     async saveUserState(s) {
       await setDoc(doc(db, 'users', auth.currentUser.uid), {
-        favorites: s.favorites, completed: s.completed, notes: s.notes, theme: s.theme, lang: s.lang || null, metronome: s.metronome || null,
+        favorites: s.favorites, completed: s.completed, notes: s.notes, theme: s.theme, lang: s.lang || null, metronome: s.metronome || null, coach: s.coach || null,
         updatedAt: serverTimestamp()
       }, { merge: true });
     },
